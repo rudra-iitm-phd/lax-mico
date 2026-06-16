@@ -7,7 +7,7 @@ from flax import nnx
 #### copied from gen_pe
 class StateAsymmetricMetric(nnx.Module):
     LOG_MIN: float = -20.0
-    LOG_MAX: float = jnp.e
+    LOG_MAX: float = 5
 
     def __init__(self, rngs: nnx.Rngs, rep_dim: int, hidden_size: int):
         zero_init = nnx.initializers.zeros
@@ -40,7 +40,7 @@ class EnsembleStateMetric(nnx.Module):
 
 class StateActionDiffuseMetric(nnx.Module):
     LOG_MIN: float = -20.0
-    LOG_MAX: float = jnp.e
+    LOG_MAX: float = 5
 
     def __init__(self, rngs: nnx.Rngs, rep_dim: int, hidden_size: int):
         zero_init = nnx.initializers.zeros
@@ -85,7 +85,7 @@ class EnsembleStateActionMetric(nnx.Module):
 
 class MinStateActiontoStateMetric(nnx.Module):
     LOG_MIN: float = -20.0
-    LOG_MAX: float = jnp.e
+    LOG_MAX: float = 5
 
     def __init__(
         self,
@@ -139,7 +139,14 @@ class RepNetUnified(nnx.Module):
         zero_init = nnx.initializers.zeros
 
         self.source_proj = nnx.Linear(source_obs_dim, hidden_dim, rngs=rngs)
-        self.target_proj = nnx.Linear(target_obs_dim, hidden_dim, rngs=rngs)
+        self.target_proj = nnx.Sequential(
+            nnx.Linear(target_obs_dim, hidden_dim, rngs=rngs),
+            nnx.LayerNorm(hidden_dim, rngs=rngs),
+            nnx.tanh,
+            nnx.Linear(hidden_dim, hidden_dim, rngs=rngs),
+            nnx.elu,
+        )
+        # self.target_proj = nnx.Linear(target_obs_dim, hidden_dim, rngs=rngs)
 
         self.trunk = nnx.Sequential(
             nnx.LayerNorm(hidden_dim, rngs=rngs),
@@ -154,10 +161,17 @@ class RepNetUnified(nnx.Module):
             hidden_dim + source_act_dim, rep_dim, rngs=rngs
         )
 
-        self.state_action_head_target = nnx.Linear(
-            hidden_dim + target_act_dim, rep_dim, rngs=rngs
+        # self.state_action_head_target = nnx.Linear(
+        #     hidden_dim + target_act_dim, rep_dim, rngs=rngs
+        # )
+        self.state_action_head_target = nnx.Sequential(
+            nnx.Linear(hidden_dim + target_act_dim, hidden_dim, rngs=rngs),
+            nnx.LayerNorm(hidden_dim, rngs=rngs),
+            nnx.tanh,
+            nnx.Linear(hidden_dim, hidden_dim, rngs=rngs),
+            nnx.elu,
+            nnx.Linear(hidden_dim, rep_dim, rngs=rngs),
         )
-
         self.rep_source_proj = nnx.Linear(rep_dim, hidden_dim, rngs=rngs)
 
     def source_state_rep(self, obs: jnp.ndarray) -> jnp.ndarray:
@@ -236,8 +250,19 @@ class SACGaussianActorRep(nnx.Module):
         self.mean_head = nnx.Linear(hidden_size, act_dim, rngs=rngs)
         self.log_std_head = nnx.Linear(hidden_size, act_dim, rngs=rngs)
 
-        self.target_mean_head = nnx.Linear(hidden_size, target_act_dim, rngs=rngs)
-        self.target_log_std_head = nnx.Linear(hidden_size, target_act_dim, rngs=rngs)
+        # self.target_mean_head = nnx.Linear(hidden_size, target_act_dim, rngs=rngs)
+        # self.target_log_std_head = nnx.Linear(hidden_size, target_act_dim, rngs=rngs)
+
+        self.target_mean_head = nnx.Sequential(
+            nnx.Linear(hidden_size, hidden_size, rngs=rngs),
+            nnx.elu,
+            nnx.Linear(hidden_size, target_act_dim, rngs=rngs),
+        )
+        self.target_log_std_head = nnx.Sequential(
+            nnx.Linear(hidden_size, hidden_size, rngs=rngs),
+            nnx.elu,
+            nnx.Linear(hidden_size, target_act_dim, rngs=rngs),
+        )
 
     def _get_dist_params(self, obs: jnp.ndarray):
         features = self.trunk(obs)

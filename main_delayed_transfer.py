@@ -1029,6 +1029,559 @@ def train_n_steps(
     )
 
 
+def transfer_tuning(
+    rep_net: RepNetUnified,
+    rep_net_opt: nnx.Optimizer,
+    state_metric: EnsembleStateMetric,
+    state_metric_opt: nnx.Optimizer,
+    state_action_metric: EnsembleStateActionMetric,
+    state_action_metric_opt: nnx.Optimizer,
+    min_state_action_to_state_metric: MinStateActiontoStateMetric,
+    min_state_action_to_state_metric_opt: nnx.Optimizer,
+    target_state_metric: EnsembleStateMetric,
+    target_state_action_to_state_metric: MinStateActiontoStateMetric,
+    actor: SACGaussianActorRep,
+    actor_opt: nnx.Optimizer,
+    # actor_e2: SACGaussianActorRep,
+    # actor_e2_opt: nnx.Optimizer,
+    critic: EnsembleCriticRep,
+    critic_opt: nnx.Optimizer,
+    target_critic: EnsembleCriticRep,
+    log_alpha: Scalar,
+    alpha_opt: nnx.Optimizer,
+    # log_alpha_e2: Scalar,
+    # alpha_e2_opt: nnx.Optimizer,
+    data: Transition,
+    data_e2: Transition,
+    config,
+    key: jnp.ndarray,
+):
+    obs = data.observation
+    act = data.action
+    reward = data.reward
+    discount = data.discount
+    next_obs = data.next_observation
+
+    obs_e2 = data_e2.observation
+    act_e2 = data_e2.action
+    reward_e2 = data_e2.reward
+    discount_e2 = data_e2.discount
+    next_obs_e2 = data_e2.next_observation
+
+    alpha = jnp.exp(log_alpha())
+    beta = 0.1
+
+    key, next_key = jax.random.split(key)
+
+    next_obs_rep = rep_net.source_state_rep(next_obs)
+    next_act, next_log_prob = actor(next_obs_rep, next_key)
+
+    s, a, r, s_next = obs, act, reward[:, None], next_obs
+    batch = jnp.concatenate([s, a, r, s_next], axis=-1)
+    key, perm_key = jax.random.split(key)
+    batch = jax.random.permutation(perm_key, batch)
+    batch = batch[:, -1]
+
+    obs_dim, act_dim = obs.shape[-1], act.shape[-1]
+    # B X 1 X (obs_dim, act_dim, None, obs_dim)
+    x, b, y, x_next = (
+        batch[:, :obs_dim],
+        batch[:, obs_dim : obs_dim + act_dim],
+        batch[:, obs_dim + act_dim],
+        batch[:, obs_dim + act_dim + 1 :],
+    )
+
+    r = r[:, -1]  ## shaping reward from (B, 1, 1) --> (B, 1)
+
+    x, b, y, x_next = x[:, None, :], b[:, None, :], y[:, None], x_next[:, None, :]
+
+    ## shape mismatch error fixed
+
+    s_rep, x_rep = rep_net.source_state_rep(s), rep_net.source_state_rep(x)
+    s_next_rep, x_next_rep = (
+        rep_net.source_state_rep(s_next),
+        rep_net.source_state_rep(x_next),
+    )
+    sa_rep, xb_rep = (
+        rep_net.source_state_action_rep(s, a),
+        rep_net.source_state_action_rep(x, b),
+    )
+
+    g_sx_next, g_xs_next = target_state_metric(s_next_rep, x_next_rep)
+    u_target = jnp.maximum(g_sx_next, g_xs_next)
+    lambda_target = jax.lax.stop_gradient(jnp.abs(r - y) + discount * u_target)
+
+    ## env2 representations
+
+    s2, a2, r2, s2_next = obs_e2, act_e2, reward_e2[:, None], next_obs_e2
+    batch_e2 = jnp.concatenate([s2, a2, r2, s2_next], axis=-1)
+    key, perm_2_key = jax.random.split(key)
+    batch_e2 = jax.random.permutation(perm_2_key, batch_e2)
+    batch_e2 = batch_e2[:, -1]
+
+    obs_dim_e2, act_dim_e2 = obs_e2.shape[-1], act_e2.shape[-1]
+
+    x2, b2, y2, x2_next = (
+        batch_e2[:, :obs_dim_e2],
+        batch_e2[:, obs_dim_e2 : obs_dim_e2 + act_dim_e2],
+        batch_e2[:, obs_dim_e2 + act_dim_e2],
+        batch_e2[:, obs_dim_e2 + act_dim_e2 + 1 :],
+    )
+
+    r2 = r2[:, -1]  ## shaping reward from (B, 1, 1) --> (B, 1)
+
+    x2, b2, y2, x2_next = (
+        x2[:, None, :],
+        b2[:, None, :],
+        y2[:, None],
+        x2_next[:, None, :],
+    )
+
+    s_e2_rep, x_e2_rep = rep_net.target_state_rep(s2), rep_net.target_state_rep(x2)
+    s_next_e2_rep, x_next_e2_rep = (
+        rep_net.target_state_rep(s2_next),
+        rep_net.target_state_rep(x2_next),
+    )
+    sa_e2_rep, xb_e2_rep = (
+        rep_net.target_state_action_rep(s2, a2),
+        rep_net.target_state_action_rep(x2, b2),
+    )
+
+    g_s_xe2_next, g_xe2_s_next = target_state_metric(s_next_rep, x_next_e2_rep)
+    u_e2_target = jnp.maximum(g_s_xe2_next, g_xe2_s_next)
+    lambda_e2_target = jax.lax.stop_gradient(jnp.abs(r - y2) + discount * u_e2_target)
+
+    g_sx_2_next, g_xs_2_next = target_state_metric(s_next_e2_rep, x_next_e2_rep)
+    u2_target = jnp.maximum(g_sx_2_next, g_xs_2_next)
+    lambda_2_target = jax.lax.stop_gradient(jnp.abs(r2 - y2) + discount_e2 * u2_target)
+
+    ## naming_convention : write model when it's a model
+
+    def compute_state_diff(
+        s: jnp.ndarray,
+        x: jnp.ndarray,
+        rep_net: RepNetUnified,
+        state_metric: EnsembleStateMetric,
+    ):
+        # (s, x) --> (source env state, target env state)
+        s_rep, x_rep = rep_net.source_state_rep(s), rep_net.target_state_rep(x)
+        g_sx, g_xs = state_metric(s_rep, x_rep)
+        u = jnp.maximum(g_sx, g_xs)
+        return jnp.mean(u)
+
+    def compute_state_action_diff(
+        s: jnp.ndarray,
+        pi: jnp.ndarray,
+        x: jnp.ndarray,
+        b: jnp.ndarray,
+        rep_net: RepNetUnified,
+        state_action_metric: EnsembleStateMetric,
+    ):
+        # (s, pi) --> source state, corresponding action given by policy from env 1
+        # (x, b) --> target state, some ranodm action
+        spi_rep, xb_rep = (
+            rep_net.source_state_action_rep(s, pi),
+            rep_net.target_state_action_rep(x, b),
+        )
+        d_spi_xb, d_xb_spi = state_action_metric(spi_rep, xb_rep)
+        return jnp.mean(jnp.maximum(d_spi_xb, d_xb_spi))
+
+    def state_grad_steps(i, carry):
+        (x, models, s_eq) = carry
+        (rep_net, state_metric) = models
+        grad_s = jax.grad(lambda s: compute_state_diff(s, x, rep_net, state_metric))(
+            s_eq
+        )
+        s_eq = s_eq - config.lr * grad_s
+        return (x, models, s_eq)
+
+    (s2, (rep_net, state_metric), s_eq) = nnx.fori_loop(
+        0, 10, state_grad_steps, (x, (rep_net, state_metric), s)
+    )
+
+    def action_grad_steps(i, carry):
+        (s, pi, x, models, b_eq) = carry
+        (rep_net, state_action_metric) = models
+        grads_b = jax.grad(
+            lambda b: jnp.mean(
+                compute_state_action_diff(s, pi, x, b, rep_net, state_action_metric)
+            )
+        )(b_eq)
+        b_eq = b_eq - config.lr * grads_b
+        return (s_eq, pi, x, models, b_eq)
+
+    key, act_key = jax.random.split(key)
+
+    pi, _ = actor(s_eq, act_key)
+
+    pi_eq = a2
+
+    (s_eq, pi, s2, (rep_net, state_action_metric), pi_eq) = nnx.fori_loop(
+        0, 10, action_grad_steps, (s_eq, pi, s2, (rep_net, state_action_metric), pi_eq)
+    )
+
+    def actor_e2_loss_fn(actor: SACGaussianActorRep):
+        actions, _ = actor.sample_target(s_e2_rep)
+        return jnp.mean((actions - pi) ** 2)
+
+    transfer_loss, actor_grads = nnx.value_and_grad(actor_e2_loss_fn)(actor)
+    actor_opt.update(actor, actor_grads)
+
+    return transfer_loss
+
+
+@functools.partial(nnx.jit, static_argnames=("env", "env_2", "buffer", "buffer_e2"))
+def transfer_train_n_step(
+    env,
+    env_state,
+    buffer_state,
+    buffer,
+    running_state,
+    env_2,
+    env_state_2,
+    buffer_state_e2,
+    buffer_e2,
+    running_state_e2,
+    rep_net: RepNetUnified,
+    rep_net_opt: nnx.Optimizer,
+    state_metric: EnsembleStateMetric,
+    state_metric_opt: nnx.Optimizer,
+    state_action_metric: EnsembleStateActionMetric,
+    state_action_metric_opt: nnx.Optimizer,
+    min_state_action_to_state_metric: MinStateActiontoStateMetric,
+    min_state_action_to_state_metric_opt: nnx.Optimizer,
+    target_state_metric: EnsembleStateMetric,
+    target_state_action_to_state_metric: MinStateActiontoStateMetric,
+    actor: SACGaussianActor,
+    actor_opt: nnx.Optimizer,
+    # actor_e2: SACGaussianActor,
+    # actor_e2_opt: nnx.Optimizer,
+    critic: EnsembleCritic,
+    critic_opt: nnx.Optimizer,
+    target_critic: EnsembleCritic,
+    log_alpha: Scalar,
+    alpha_opt: nnx.Optimizer,
+    # log_alpha_e2: Scalar,
+    # alpha_opt_e2: nnx.Optimizer,
+    config,
+    key: jnp.ndarray,
+):
+
+    num_steps = config.log_freq
+
+    def body_fun(i, carry):
+        (
+            key,
+            env_state,
+            buffer_state,
+            running_state,
+            env_state_2,
+            buffer_state_e2,
+            running_state_e2,
+            models,
+            val,
+        ) = carry
+        (
+            rep_net,
+            rep_net_opt,
+            state_metric,
+            state_metric_opt,
+            state_action_metric,
+            state_action_metric_opt,
+            min_state_action_to_state_metric,
+            min_state_action_to_state_metric_opt,
+            target_state_metric,
+            target_state_action_to_state_metric,
+            actor,
+            actor_opt,
+            # actor_e2,
+            # actor_e2_opt,
+            critic,
+            critic_opt,
+            target_critic,
+            log_alpha,
+            alpha_opt,
+            # log_alpha_e2,
+            # alpha_opt_e2,
+        ) = models
+
+        key, env_key = jax.random.split(key)
+        n_env_state, transition = actor_step_rep_source(
+            env, env_state, rep_net, actor, env_key, extra_fields=("truncation",)
+        )
+        # buffer_state = buffer.insert(buffer_state, transition)
+        # running_state = RunningStatistics.insert_reward(
+        #     running_state, n_env_state.reward
+        # )
+
+        key, env_2_key = jax.random.split(key)
+        n_env_2_state, transition_e2 = actor_step_rep_target(
+            env_2,
+            env_state_2,
+            rep_net,
+            actor,
+            env_2_key,
+            extra_fields=("truncation",),
+        )
+        buffer_state_e2 = buffer_e2.insert(buffer_state_e2, transition_e2)
+        running_state_e2 = RunningStatistics.insert_reward(
+            running_state_e2, n_env_2_state.reward
+        )
+
+        def do_train(j, carry):
+            key, env_state, buffer_state, buffer_state_e2, models, _ = carry
+            (
+                rep_net,
+                rep_net_opt,
+                state_metric,
+                state_metric_opt,
+                state_action_metric,
+                state_action_metric_opt,
+                min_state_action_to_state_metric,
+                min_state_action_to_state_metric_opt,
+                target_state_metric,
+                target_state_action_to_state_metric,
+                actor,
+                actor_opt,
+                # actor_e2,
+                # actor_e2_opt,
+                critic,
+                critic_opt,
+                target_critic,
+                log_alpha,
+                alpha_opt,
+                # log_alpha_e2,
+                # alpha_opt_e2,
+            ) = models
+
+            buffer_state, batch = buffer.sample(buffer_state)
+            buffer_state_e2, batch_e2 = buffer_e2.sample(buffer_state_e2)
+            key, train_key = jax.random.split(key)
+
+            val = sac_train_step(
+                rep_net,
+                rep_net_opt,
+                state_metric,
+                state_metric_opt,
+                state_action_metric,
+                state_action_metric_opt,
+                min_state_action_to_state_metric,
+                min_state_action_to_state_metric_opt,
+                target_state_metric,
+                target_state_action_to_state_metric,
+                actor,
+                actor_opt,
+                # actor_e2,
+                # actor_e2_opt,
+                critic,
+                critic_opt,
+                target_critic,
+                log_alpha,
+                alpha_opt,
+                # log_alpha_e2,
+                # alpha_opt_e2,
+                batch,
+                batch_e2,
+                config,
+                train_key,
+            )
+
+            models = (
+                rep_net,
+                rep_net_opt,
+                state_metric,
+                state_metric_opt,
+                state_action_metric,
+                state_action_metric_opt,
+                min_state_action_to_state_metric,
+                min_state_action_to_state_metric_opt,
+                target_state_metric,
+                target_state_action_to_state_metric,
+                actor,
+                actor_opt,
+                # actor_e2,
+                # actor_e2_opt,
+                critic,
+                critic_opt,
+                target_critic,
+                log_alpha,
+                alpha_opt,
+                # log_alpha_e2,
+                # alpha_opt_e2,
+            )
+
+            return (key, env_state, buffer_state, buffer_state_e2, models, val)
+
+        init_val = (jnp.zeros((), jnp.float32),) * 12
+        models = (
+            rep_net,
+            rep_net_opt,
+            state_metric,
+            state_metric_opt,
+            state_action_metric,
+            state_action_metric_opt,
+            min_state_action_to_state_metric,
+            min_state_action_to_state_metric_opt,
+            target_state_metric,
+            target_state_action_to_state_metric,
+            actor,
+            actor_opt,
+            # actor_e2,
+            # actor_e2_opt,
+            critic,
+            critic_opt,
+            target_critic,
+            log_alpha,
+            alpha_opt,
+            # log_alpha_e2,
+            # alpha_opt_e2,
+        )
+        key, _, buffer_state, buffer_state_e2, models, val = nnx.fori_loop(
+            0,
+            config.train_per_step,
+            do_train,
+            (key, n_env_state, buffer_state, buffer_state_e2, models, init_val),
+        )
+        (
+            rep_net,
+            rep_net_opt,
+            state_metric,
+            state_metric_opt,
+            state_action_metric,
+            state_action_metric_opt,
+            min_state_action_to_state_metric,
+            min_state_action_to_state_metric_opt,
+            target_state_metric,
+            target_state_action_to_state_metric,
+            actor,
+            actor_opt,
+            # actor_e2,
+            # actor_e2_opt,
+            critic,
+            critic_opt,
+            target_critic,
+            log_alpha,
+            alpha_opt,
+            # log_alpha_e2,
+            # alpha_opt_e2,
+        ) = models
+        return (
+            key,
+            n_env_state,
+            buffer_state,
+            running_state,
+            n_env_2_state,
+            buffer_state_e2,
+            running_state_e2,
+            (
+                rep_net,
+                rep_net_opt,
+                state_metric,
+                state_metric_opt,
+                state_action_metric,
+                state_action_metric_opt,
+                min_state_action_to_state_metric,
+                min_state_action_to_state_metric_opt,
+                target_state_metric,
+                target_state_action_to_state_metric,
+                actor,
+                actor_opt,
+                # actor_e2,
+                # actor_e2_opt,
+                critic,
+                critic_opt,
+                target_critic,
+                log_alpha,
+                alpha_opt,
+                # log_alpha_e2,
+                # alpha_opt_e2,
+            ),
+            val,
+        )
+
+    init_val = (jnp.zeros((), jnp.float32),) * 12
+    init_carry = (
+        key,
+        env_state,
+        buffer_state,
+        running_state,
+        env_state_2,
+        buffer_state_e2,
+        running_state_e2,
+        (
+            rep_net,
+            rep_net_opt,
+            state_metric,
+            state_metric_opt,
+            state_action_metric,
+            state_action_metric_opt,
+            min_state_action_to_state_metric,
+            min_state_action_to_state_metric_opt,
+            target_state_metric,
+            target_state_action_to_state_metric,
+            actor,
+            actor_opt,
+            # actor_e2,
+            # actor_e2_opt,
+            critic,
+            critic_opt,
+            target_critic,
+            log_alpha,
+            alpha_opt,
+            # log_alpha_e2,
+            # alpha_opt_e2,
+        ),
+        init_val,
+    )
+
+    (
+        _,
+        env_state,
+        buffer_state,
+        running_state,
+        env_state_2,
+        buffer_state_e2,
+        running_state_e2,
+        models,
+        val,
+    ) = nnx.fori_loop(0, num_steps, body_fun, init_carry)
+
+    (
+        rep_net,
+        rep_net_opt,
+        state_metric,
+        state_metric_opt,
+        state_action_metric,
+        state_action_metric_opt,
+        min_state_action_to_state_metric,
+        min_state_action_to_state_metric_opt,
+        target_state_metric,
+        target_state_action_to_state_metric,
+        actor,
+        actor_opt,
+        # actor_e2,
+        # actor_e2_opt,
+        critic,
+        critic_opt,
+        target_critic,
+        log_alpha,
+        alpha_opt,
+        # log_alpha_e2,
+        # alpha_opt_e2,
+    ) = models
+
+    return (
+        *val,
+        env_state,
+        running_state,
+        buffer_state,
+        env_state_2,
+        running_state_e2,
+        buffer_state_e2,
+        num_steps,
+    )
+
+
 """ Copied from claude """
 
 
@@ -1458,7 +2011,10 @@ def main(args, cfg_env=None):
             num_steps,
         ) = val
 
+        # transfer_loss, return from env 2
+
         steps += num_steps
+
         logger.logged = False
 
         # ── logging (mirrors gpe key naming exactly) ──────────────────────
