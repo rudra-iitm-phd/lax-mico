@@ -165,7 +165,7 @@ def sac_train_step(
     (actor_loss, log_pi_mean), (actor_grads, rep_grads_from_actor) = nnx.value_and_grad(
         actor_loss_fn, has_aux=True
     )((actor, rep_net))
-    # actor_opt.update(actor, actor_grads)
+    actor_opt.update(actor, actor_grads)
 
     # B X (obs_dim , act_dim, 1, obs_dim) | I am assuming reward is of shape (B, ), so I am expanding it.
 
@@ -560,24 +560,24 @@ def sac_train_step(
         u = jnp.maximum(g_sx, g_xs)
         return jnp.mean(u)
 
-    def actor_e2_loss_fn(actor: SACGaussianActorRep):
-        # grad_s_rep = jax.grad(
-        #     lambda s, x: jnp.mean(compute_state_rep_diff(s, x)), argnums=0
-        # )(s_rep, x_e2_rep)
-        # s_match = s_rep - config.lr * grad_s_rep
+    # def actor_e2_loss_fn(actor: SACGaussianActorRep):
+    #     # grad_s_rep = jax.grad(
+    #     #     lambda s, x: jnp.mean(compute_state_rep_diff(s, x)), argnums=0
+    #     # )(s_rep, x_e2_rep)
+    #     # s_match = s_rep - config.lr * grad_s_rep
 
-        pi_e2, log_pi_e2 = actor.sample_target(x_e2_rep, act_e2_key)
-        pi, _ = actor(s_rep, act_key)
+    #     pi_e2, log_pi_e2 = actor.sample_target(x_e2_rep, act_e2_key)
+    #     pi, _ = actor(s_rep, act_key)
 
-        spi_rep, xpi2_rep = (
-            rep_net.rep_source_action_rep(s_rep, pi),
-            rep_net.target_state_action_rep(x2, pi_e2),
-        )
-        g_s_xe2, g_xe2_s = target_state_metric(s_rep, x_e2_rep)
-        d_spi_xpi2, d_xpi2_spi = state_action_metric(spi_rep, xpi2_rep)
-        lambda_curr = jnp.maximum(d_spi_xpi2, d_xpi2_spi)
-        target = jax.lax.stop_gradient(jnp.maximum(g_s_xe2, g_xe2_s))
-        return jnp.mean(optax.huber_loss(lambda_curr, target, delta=1.0))
+    #     spi_rep, xpi2_rep = (
+    #         rep_net.rep_source_action_rep(s_rep, pi),
+    #         rep_net.target_state_action_rep(x2, pi_e2),
+    #     )
+    #     g_s_xe2, g_xe2_s = target_state_metric(s_rep, x_e2_rep)
+    #     d_spi_xpi2, d_xpi2_spi = state_action_metric(spi_rep, xpi2_rep)
+    #     lambda_curr = jnp.maximum(d_spi_xpi2, d_xpi2_spi)
+    #     target = jax.lax.stop_gradient(jnp.maximum(g_s_xe2, g_xe2_s))
+    #     return jnp.mean(optax.huber_loss(lambda_curr, target, delta=1.0))
 
     ######################################################################################## NEED TO FIGURE OUT
     # def compute_state_rep_diff(s_rep: jnp.ndarray, x_rep: jnp.ndarray):
@@ -602,35 +602,35 @@ def sac_train_step(
     #     loss = jnp.mean(inter_state_action_diff)
     #     return loss
 
-    actor_e2_loss, actor_e2_grads = nnx.value_and_grad(actor_e2_loss_fn)(actor)
+    # actor_e2_loss, actor_e2_grads = nnx.value_and_grad(actor_e2_loss_fn)(actor)
 
-    actor_e2_grads.trunk = jax.tree.map(jnp.zeros_like, actor_e2_grads.trunk)
-    actor_e2_grads.mean_head.kernel.set_value(
-        jnp.zeros_like(actor_e2_grads.mean_head.kernel.get_value())
-    )
-    actor_e2_grads.mean_head.bias.set_value(
-        jnp.zeros_like(actor_e2_grads.mean_head.bias.get_value())
-    )
-    actor_e2_grads.log_std_head.kernel.set_value(
-        jnp.zeros_like(actor_e2_grads.log_std_head.kernel.get_value())
-    )
-    actor_e2_grads.log_std_head.bias.set_value(
-        jnp.zeros_like(actor_e2_grads.log_std_head.bias.get_value())
-    )
+    # actor_e2_grads.trunk = jax.tree.map(jnp.zeros_like, actor_e2_grads.trunk)
+    # actor_e2_grads.mean_head.kernel.set_value(
+    #     jnp.zeros_like(actor_e2_grads.mean_head.kernel.get_value())
+    # )
+    # actor_e2_grads.mean_head.bias.set_value(
+    #     jnp.zeros_like(actor_e2_grads.mean_head.bias.get_value())
+    # )
+    # actor_e2_grads.log_std_head.kernel.set_value(
+    #     jnp.zeros_like(actor_e2_grads.log_std_head.kernel.get_value())
+    # )
+    # actor_e2_grads.log_std_head.bias.set_value(
+    #     jnp.zeros_like(actor_e2_grads.log_std_head.bias.get_value())
+    # )
 
-    ##freezing the target layers for the actor grads obained in source env
+    # ##freezing the target layers for the actor grads obained in source env
 
-    actor_grads.target_mean_head = jax.tree.map(
-        jnp.zeros_like, actor_grads.target_mean_head
-    )
-    actor_grads.target_log_std_head = jax.tree.map(
-        jnp.zeros_like, actor_grads.target_log_std_head
-    )
+    # actor_grads.target_mean_head = jax.tree.map(
+    #     jnp.zeros_like, actor_grads.target_mean_head
+    # )
+    # actor_grads.target_log_std_head = jax.tree.map(
+    #     jnp.zeros_like, actor_grads.target_log_std_head
+    # )
 
-    actor_grads_total = jax.tree_util.tree_map(
-        lambda a, b: a + b, actor_grads, actor_e2_grads
-    )
-    actor_opt.update(actor, actor_grads_total)
+    # actor_grads_total = jax.tree_util.tree_map(
+    #     lambda a, b: a + b, actor_grads, actor_e2_grads
+    # )
+    # actor_opt.update(actor, actor_grads_total)
 
     ###########################################################################################
     def alpha_loss_fn(log_alpha):
@@ -673,7 +673,7 @@ def sac_train_step(
         g_loss,
         h_loss,
         rep_loss,
-        actor_e2_loss,
+        # actor_e2_loss,
     )
 
 
@@ -859,7 +859,7 @@ def train_n_steps(
 
             return (key, env_state, buffer_state, buffer_state_e2, models, val)
 
-        init_val = (jnp.zeros((), jnp.float32),) * 12
+        init_val = (jnp.zeros((), jnp.float32),) * 11
         models = (
             rep_net,
             rep_net_opt,
@@ -946,7 +946,7 @@ def train_n_steps(
             val,
         )
 
-    init_val = (jnp.zeros((), jnp.float32),) * 12
+    init_val = (jnp.zeros((), jnp.float32),) * 11
     init_carry = (
         key,
         env_state,
@@ -1067,6 +1067,8 @@ def transfer_tuning(
     reward_e2 = data_e2.reward
     discount_e2 = data_e2.discount
     next_obs_e2 = data_e2.next_observation
+
+    grad_steps = config.grad_steps
 
     alpha = jnp.exp(log_alpha())
     beta = 0.1
@@ -1196,7 +1198,7 @@ def transfer_tuning(
         return (x, models, s_eq)
 
     (s2, (rep_net, state_metric), s_eq) = nnx.fori_loop(
-        0, 10, state_grad_steps, (x, (rep_net, state_metric), s)
+        0, grad_steps, state_grad_steps, (x, (rep_net, state_metric), s)
     )
 
     def action_grad_steps(i, carry):
@@ -1210,24 +1212,42 @@ def transfer_tuning(
         b_eq = b_eq - config.lr * grads_b
         return (s_eq, pi, x, models, b_eq)
 
-    key, act_key = jax.random.split(key)
+    key, act_key, act2_key = jax.random.split(key, 3)
 
-    pi, _ = actor(s_eq, act_key)
+    pi, _ = actor(rep_net.source_state_rep(s_eq), act_key)
 
     pi_eq = a2
 
     (s_eq, pi, s2, (rep_net, state_action_metric), pi_eq) = nnx.fori_loop(
-        0, 10, action_grad_steps, (s_eq, pi, s2, (rep_net, state_action_metric), pi_eq)
+        0,
+        grad_steps,
+        action_grad_steps,
+        (s_eq, pi, s2, (rep_net, state_action_metric), pi_eq),
     )
 
     def actor_e2_loss_fn(actor: SACGaussianActorRep):
-        actions, _ = actor.sample_target(s_e2_rep)
-        return jnp.mean((actions - pi) ** 2)
+        actions, _ = actor.sample_target(s_e2_rep, act2_key)
+        return jnp.mean((actions - pi_eq) ** 2)
 
     transfer_loss, actor_grads = nnx.value_and_grad(actor_e2_loss_fn)(actor)
+
+    actor_grads.trunk = jax.tree.map(jnp.zeros_like, actor_grads.trunk)
+    actor_grads.mean_head.kernel.set_value(actor_grads.mean_head.kernel.get_value())
+    actor_grads.mean_head.bias.set_value(actor_grads.mean_head.bias.get_value())
+
+    actor_grads.log_std_head.kernel.set_value(
+        actor_grads.log_std_head.kernel.get_value()
+    )
+    actor_grads.log_std_head.bias.set_value(actor_grads.log_std_head.bias.get_value())
+
     actor_opt.update(actor, actor_grads)
 
-    return transfer_loss
+    state_matching_loss = compute_state_diff(s_eq, s2, rep_net, state_metric)
+    action_matching_loss = compute_state_action_diff(
+        s_eq, pi, s2, pi_eq, rep_net, state_action_metric
+    )
+
+    return transfer_loss, state_matching_loss, action_matching_loss
 
 
 @functools.partial(nnx.jit, static_argnames=("env", "env_2", "buffer", "buffer_e2"))
@@ -1267,7 +1287,7 @@ def transfer_train_n_step(
     key: jnp.ndarray,
 ):
 
-    num_steps = config.log_freq
+    num_steps = config.transfer_freq
 
     def body_fun(i, carry):
         (
@@ -1309,10 +1329,10 @@ def transfer_train_n_step(
         n_env_state, transition = actor_step_rep_source(
             env, env_state, rep_net, actor, env_key, extra_fields=("truncation",)
         )
-        # buffer_state = buffer.insert(buffer_state, transition)
-        # running_state = RunningStatistics.insert_reward(
-        #     running_state, n_env_state.reward
-        # )
+        buffer_state = buffer.insert(buffer_state, transition)
+        running_state = RunningStatistics.insert_reward(
+            running_state, n_env_state.reward
+        )
 
         key, env_2_key = jax.random.split(key)
         n_env_2_state, transition_e2 = actor_step_rep_target(
@@ -1358,7 +1378,7 @@ def transfer_train_n_step(
             buffer_state_e2, batch_e2 = buffer_e2.sample(buffer_state_e2)
             key, train_key = jax.random.split(key)
 
-            val = sac_train_step(
+            val = transfer_tuning(
                 rep_net,
                 rep_net_opt,
                 state_metric,
@@ -1412,7 +1432,7 @@ def transfer_train_n_step(
 
             return (key, env_state, buffer_state, buffer_state_e2, models, val)
 
-        init_val = (jnp.zeros((), jnp.float32),) * 12
+        init_val = (jnp.zeros((), jnp.float32),) * 3
         models = (
             rep_net,
             rep_net_opt,
@@ -1438,7 +1458,7 @@ def transfer_train_n_step(
         )
         key, _, buffer_state, buffer_state_e2, models, val = nnx.fori_loop(
             0,
-            config.train_per_step,
+            config.transfer_steps,
             do_train,
             (key, n_env_state, buffer_state, buffer_state_e2, models, init_val),
         )
@@ -1499,7 +1519,7 @@ def transfer_train_n_step(
             val,
         )
 
-    init_val = (jnp.zeros((), jnp.float32),) * 12
+    init_val = (jnp.zeros((), jnp.float32),) * 3
     init_carry = (
         key,
         env_state,
@@ -1696,9 +1716,10 @@ def main(args, cfg_env=None):
             "episode_length": args.episode_length,
             "eval_episode_freq": args.eval_episode_freq,
             "batch_size": args.batch_size,
-            "transfer_interval": args.transfer_interval,
+            "transfer_freq": args.transfer_freq,
             "transfer_steps": args.transfer_steps,
             "env2_warmup": args.env2_warmup,
+            "grad_steps": args.grad_steps,
         }
     )
 
@@ -2001,7 +2022,7 @@ def main(args, cfg_env=None):
             g_loss,
             h_loss,
             rep_loss,
-            actor_e2_loss,
+            # actor_e2_loss,
             env_state,
             running_state,
             buffer_state,
@@ -2010,6 +2031,55 @@ def main(args, cfg_env=None):
             buffer_state_e2,
             num_steps,
         ) = val
+
+        transfer_val = transfer_train_n_step(
+            env=env,
+            env_state=env_state,
+            buffer_state=buffer_state,
+            buffer=buffer,
+            running_state=running_state,
+            rep_net=rep_net,
+            rep_net_opt=rep_net_opt,
+            state_metric=state_metric,
+            state_metric_opt=state_metric_opt,
+            state_action_metric=state_action_metric,
+            state_action_metric_opt=state_action_metric_opt,
+            min_state_action_to_state_metric=min_state_action_to_state_metric,
+            min_state_action_to_state_metric_opt=min_state_action_to_state_metric_opt,
+            target_state_metric=target_state_metric,
+            target_state_action_to_state_metric=target_state_action_to_state_metric,
+            actor=actor,
+            actor_opt=actor_opt,
+            critic=critic,
+            critic_opt=critic_opt,
+            target_critic=target_critic,
+            log_alpha=log_alpha,
+            alpha_opt=alpha_opt,
+            # log_alpha_e2=log_alpha_e2,
+            # alpha_opt_e2=alpha_opt_e2,
+            config=config_data,
+            key=subkey,
+            env_2=env2,
+            env_state_2=env2_state,
+            buffer_e2=buffer_e2,
+            buffer_state_e2=buffer_state_e2,
+            running_state_e2=running_state_e2,
+            # actor_e2=actor_e2,
+            # actor_e2_opt=actor_e2_opt,
+        )
+
+        (
+            transfer_loss,
+            state_matching_loss,
+            action_matching_loss,
+            env_state,
+            running_state,
+            buffer_state,
+            env2_state,
+            running_state_e2,
+            buffer_state_e2,
+            transfer_steps,
+        ) = transfer_val
 
         # transfer_loss, return from env 2
 
@@ -2027,7 +2097,9 @@ def main(args, cfg_env=None):
         logger.log_tabular("Loss/Loss_state_metric", g_loss.item())
         logger.log_tabular("Loss/Loss_state_action_to_state", h_loss.item())
         logger.log_tabular("Loss/Loss_representation", rep_loss.item())
-        logger.log_tabular("Loss/Loss_actor_transfer", actor_e2_loss.item())
+        logger.log_tabular("Loss/Loss_actor_transfer", transfer_loss.item())
+        logger.log_tabular("Loss/State_matching_loss", state_matching_loss.item())
+        logger.log_tabular("Loss/Action_matching_loss", action_matching_loss.item())
 
         logger.log_tabular("SAC/Alpha", alpha.item())
         logger.log_tabular("SAC/LogPi_mean", log_pi_mean.item())
