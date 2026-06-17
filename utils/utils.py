@@ -58,7 +58,7 @@ def sac_args():
     p.add_argument("--warmup-samples", type=int, default=int(5e3))
     # training schedule
     p.add_argument("--total-env-steps", type=int, default=int(1e6))
-    p.add_argument("--log-freq", type=int, default=int(1e3))
+    p.add_argument("--log-freq", type=int, default=int(1e4))
     p.add_argument("--save-freq", type=int, default=int(5e4))
     p.add_argument("--train-per-step", type=int, default=1)
     # SAC hyperparameters
@@ -72,9 +72,9 @@ def sac_args():
     p.add_argument("--eval-episode-freq", type=int, default=5)
     # transfer
     p.add_argument("--target_task", type=str, default="CheetahRun")
-    p.add_argument("--transfer_freq", type=int, default=int(1e1))
-    p.add_argument("--transfer_steps", type=int, default=int(1e0))
-    p.add_argument("--grad_steps", type=int, default=int(1e2))
+    p.add_argument("--transfer_freq", type=int, default=int(1e3))
+    p.add_argument("--transfer_steps", type=int, default=int(10))
+    p.add_argument("--grad_steps", type=int, default=int(50))
     p.add_argument("--env2_warmup", type=int, default=int(2e3))
     p.add_argument(
         "--vis-freq",

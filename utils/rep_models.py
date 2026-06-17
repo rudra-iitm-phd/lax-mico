@@ -142,9 +142,8 @@ class RepNetUnified(nnx.Module):
         self.target_proj = nnx.Sequential(
             nnx.Linear(target_obs_dim, hidden_dim, rngs=rngs),
             nnx.LayerNorm(hidden_dim, rngs=rngs),
-            nnx.tanh,
-            nnx.Linear(hidden_dim, hidden_dim, rngs=rngs),
             nnx.elu,
+            nnx.Linear(hidden_dim, hidden_dim, rngs=rngs),
         )
         # self.target_proj = nnx.Linear(target_obs_dim, hidden_dim, rngs=rngs)
 
@@ -167,8 +166,6 @@ class RepNetUnified(nnx.Module):
         self.state_action_head_target = nnx.Sequential(
             nnx.Linear(hidden_dim + target_act_dim, hidden_dim, rngs=rngs),
             nnx.LayerNorm(hidden_dim, rngs=rngs),
-            nnx.tanh,
-            nnx.Linear(hidden_dim, hidden_dim, rngs=rngs),
             nnx.elu,
             nnx.Linear(hidden_dim, rep_dim, rngs=rngs),
         )
@@ -254,11 +251,13 @@ class SACGaussianActorRep(nnx.Module):
         # self.target_log_std_head = nnx.Linear(hidden_size, target_act_dim, rngs=rngs)
 
         self.target_mean_head = nnx.Sequential(
+            nnx.LayerNorm(hidden_size, rngs=rngs),
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
             nnx.elu,
             nnx.Linear(hidden_size, target_act_dim, rngs=rngs),
         )
         self.target_log_std_head = nnx.Sequential(
+            nnx.LayerNorm(hidden_size, rngs=rngs),
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
             nnx.elu,
             nnx.Linear(hidden_size, target_act_dim, rngs=rngs),
