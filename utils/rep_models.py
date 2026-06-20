@@ -7,16 +7,17 @@ from flax import nnx
 #### copied from gen_pe
 class StateAsymmetricMetric(nnx.Module):
     LOG_MIN: float = -20.0
-    LOG_MAX: float = 5
+    LOG_MAX: float = jnp.e
 
     def __init__(self, rngs: nnx.Rngs, rep_dim: int, hidden_size: int):
         zero_init = nnx.initializers.zeros
         self.model = nnx.Sequential(
             nnx.Linear(rep_dim + rep_dim, hidden_size, rngs=rngs),
             nnx.LayerNorm(hidden_size, rngs=rngs),
-            nnx.tanh,
+            nnx.relu,
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
-            nnx.elu,
+            nnx.LayerNorm(hidden_size, rngs=rngs),
+            nnx.relu,
             nnx.Linear(
                 hidden_size, 1, kernel_init=zero_init, bias_init=zero_init, rngs=rngs
             ),
@@ -40,16 +41,17 @@ class EnsembleStateMetric(nnx.Module):
 
 class StateActionDiffuseMetric(nnx.Module):
     LOG_MIN: float = -20.0
-    LOG_MAX: float = 5
+    LOG_MAX: float = jnp.e
 
     def __init__(self, rngs: nnx.Rngs, rep_dim: int, hidden_size: int):
         zero_init = nnx.initializers.zeros
         self.model = nnx.Sequential(
             nnx.Linear(rep_dim + rep_dim, hidden_size, rngs=rngs),
             nnx.LayerNorm(hidden_size, rngs=rngs),
-            nnx.tanh,
+            nnx.relu,
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
-            nnx.elu,
+            nnx.LayerNorm(hidden_size, rngs=rngs),
+            nnx.relu,
             nnx.Linear(
                 hidden_size, 1, kernel_init=zero_init, bias_init=zero_init, rngs=rngs
             ),
@@ -85,7 +87,7 @@ class EnsembleStateActionMetric(nnx.Module):
 
 class MinStateActiontoStateMetric(nnx.Module):
     LOG_MIN: float = -20.0
-    LOG_MAX: float = 5
+    LOG_MAX: float = jnp.e
 
     def __init__(
         self,
@@ -98,9 +100,10 @@ class MinStateActiontoStateMetric(nnx.Module):
         self.model = nnx.Sequential(
             nnx.Linear(state_action_rep_dim + state_rep_dim, hidden_size, rngs=rngs),
             nnx.LayerNorm(hidden_size, rngs=rngs),
-            nnx.tanh,
+            nnx.relu,
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
-            nnx.elu,
+            nnx.LayerNorm(hidden_size, rngs=rngs),
+            nnx.relu,
             nnx.Linear(
                 hidden_size, 1, kernel_init=zero_init, bias_init=zero_init, rngs=rngs
             ),

@@ -28,6 +28,7 @@ from tensorboardX import SummaryWriter
 
 from utils.acting import (
     actor_step,
+    actor_step_rep,
     actor_step_rep_source,
     actor_step_rep_target,
     wrap_env_for_training,
@@ -39,7 +40,7 @@ from utils.models import (
     EnsembleCriticRep,
     RepNet,
     SACGaussianActor,
-    # SACGaussianActorRep,
+    SACGaussianActorRep,
     Scalar,
     get_tree_norm,
 )
@@ -48,7 +49,7 @@ from utils.rep_models import (
     EnsembleStateMetric,
     MinStateActiontoStateMetric,
     RepNetUnified,
-    SACGaussianActorRep,
+    # SACGaussianActorRep,
 )
 from utils.types import Transition
 from utils.utils import make_static_config_from_dict, sac_args
@@ -87,8 +88,10 @@ def polyak_update(target_model, curr_model, tau: float):
 
 
 def sac_train_step(
-    rep_net: RepNetUnified,
+    rep_net: RepNet,
     rep_net_opt: nnx.Optimizer,
+    rep_net_e2: RepNet,
+    rep_net_e2_opt: nnx.Optimizer,
     state_metric: EnsembleStateMetric,
     state_metric_opt: nnx.Optimizer,
     state_action_metric: EnsembleStateActionMetric,
@@ -99,15 +102,15 @@ def sac_train_step(
     target_state_action_to_state_metric: MinStateActiontoStateMetric,
     actor: SACGaussianActorRep,
     actor_opt: nnx.Optimizer,
-    # actor_e2: SACGaussianActorRep,
-    # actor_e2_opt: nnx.Optimizer,
+    actor_e2: SACGaussianActorRep,
+    actor_e2_opt: nnx.Optimizer,
     critic: EnsembleCriticRep,
     critic_opt: nnx.Optimizer,
     target_critic: EnsembleCriticRep,
     log_alpha: Scalar,
     alpha_opt: nnx.Optimizer,
-    # log_alpha_e2: Scalar,
-    # alpha_e2_opt: nnx.Optimizer,
+    log_alpha_e2: Scalar,
+    alpha_e2_opt: nnx.Optimizer,
     data: Transition,
     data_e2: Transition,
     config,
@@ -130,18 +133,18 @@ def sac_train_step(
 
     key, next_key = jax.random.split(key)
 
-    next_obs_rep = rep_net.source_state_rep(next_obs)
+    next_obs_rep = rep_net.state_rep(next_obs)
     next_act, next_log_prob = actor(next_obs_rep, next_key)
 
     def critic_loss_fn(critic_and_rep):
         critic_, rep_ = critic_and_rep
-        next_obs_act_rep = rep_.source_state_action_rep(next_obs, next_act)
+        next_obs_act_rep = rep_.state_action_rep(next_obs, next_act)
         q1_t, q2_t = target_critic(jax.lax.stop_gradient(next_obs_act_rep))
         backup = reward + config.gamma * discount * (
             jnp.minimum(q1_t, q2_t) - alpha * next_log_prob
         )
         backup = jax.lax.stop_gradient(backup)
-        obs_act_rep = rep_.source_state_action_rep(obs, act)
+        obs_act_rep = rep_.state_action_rep(obs, act)
         q1, q2 = critic_(obs_act_rep)
         loss = jnp.mean((q1 - backup) ** 2) + jnp.mean((q2 - backup) ** 2)
         return loss, (jnp.mean(q1), jnp.mean(q2))
@@ -155,9 +158,9 @@ def sac_train_step(
 
     def actor_loss_fn(actor_and_rep):
         actor_, rep_ = actor_and_rep
-        obs_rep = rep_.source_state_rep(obs)
+        obs_rep = rep_.state_rep(obs)
         pi, log_pi = actor_(obs_rep, act_key)
-        obs_act_rep = rep_net.source_state_action_rep(obs, pi)
+        obs_act_rep = rep_net.state_action_rep(obs, pi)
         q1, q2 = critic(obs_act_rep)
         loss = jnp.mean(alpha * log_pi - jnp.minimum(q1, q2))
         return loss, jnp.mean(log_pi)
@@ -166,25 +169,6 @@ def sac_train_step(
         actor_loss_fn, has_aux=True
     )((actor, rep_net))
 
-    # actor_grads.target_mean_head.kernel.set_value(
-    #     jnp.zeros_like(actor_grads.target_mean_head.kernel.get_value())
-    # )
-    # actor_grads.target_mean_head.bias.set_value(
-    #     jnp.zeros_like(actor_grads.target_mean_head.bias.get_value())
-    # )
-
-    # actor_grads.target_log_std_head.kernel.set_value(
-    #     jnp.zeros_like(actor_grads.target_log_std_head.kernel.get_value())
-    # )
-    # actor_grads.target_log_std_head.bias.set_value(
-    #     jnp.zeros_like(actor_grads.target_log_std_head.bias.get_value())
-    # )
-    actor_grads.target_mean_head = jax.tree.map(
-        jnp.zeros_like, actor_grads.target_mean_head
-    )
-    actor_grads.target_log_std_head = jax.tree.map(
-        jnp.zeros_like, actor_grads.target_log_std_head
-    )
     actor_opt.update(actor, actor_grads)
 
     # B X (obs_dim , act_dim, 1, obs_dim) | I am assuming reward is of shape (B, ), so I am expanding it.
@@ -210,14 +194,14 @@ def sac_train_step(
 
     ## shape mismatch error fixed
 
-    s_rep, x_rep = rep_net.source_state_rep(s), rep_net.source_state_rep(x)
+    s_rep, x_rep = rep_net.state_rep(s), rep_net.state_rep(x)
     s_next_rep, x_next_rep = (
-        rep_net.source_state_rep(s_next),
-        rep_net.source_state_rep(x_next),
+        rep_net.state_rep(s_next),
+        rep_net.state_rep(x_next),
     )
     sa_rep, xb_rep = (
-        rep_net.source_state_action_rep(s, a),
-        rep_net.source_state_action_rep(x, b),
+        rep_net.state_action_rep(s, a),
+        rep_net.state_action_rep(x, b),
     )
 
     g_sx_next, g_xs_next = target_state_metric(s_next_rep, x_next_rep)
@@ -225,6 +209,7 @@ def sac_train_step(
     lambda_target = jax.lax.stop_gradient(jnp.abs(r - y) + discount * u_target)
 
     ## env2 representations
+    """ Following batch is from the target environments"""
 
     s2, a2, r2, s2_next = obs_e2, act_e2, reward_e2[:, None], next_obs_e2
     batch_e2 = jnp.concatenate([s2, a2, r2, s2_next], axis=-1)
@@ -250,14 +235,14 @@ def sac_train_step(
         x2_next[:, None, :],
     )
 
-    s_e2_rep, x_e2_rep = rep_net.target_state_rep(s2), rep_net.target_state_rep(x2)
+    s_e2_rep, x_e2_rep = rep_net_e2.state_rep(s2), rep_net_e2.state_rep(x2)
     s_next_e2_rep, x_next_e2_rep = (
-        rep_net.target_state_rep(s2_next),
-        rep_net.target_state_rep(x2_next),
+        rep_net_e2.state_rep(s2_next),
+        rep_net_e2.state_rep(x2_next),
     )
     sa_e2_rep, xb_e2_rep = (
-        rep_net.target_state_action_rep(s2, a2),
-        rep_net.target_state_action_rep(x2, b2),
+        rep_net_e2.state_action_rep(s2, a2),
+        rep_net_e2.state_action_rep(x2, b2),
     )
 
     g_s_xe2_next, g_xe2_s_next = target_state_metric(s_next_rep, x_next_e2_rep)
@@ -460,14 +445,15 @@ def sac_train_step(
     g_loss, g_grads = nnx.value_and_grad(state_metric_loss_fn)(state_metric)
     state_metric_opt.update(state_metric, g_grads)
 
-    def rep_loss_fn(rep_net: RepNetUnified):
-        s_rep, x_rep = rep_net.source_state_rep(s), rep_net.source_state_rep(x)
+    def rep_loss_fn(rep_nets):
+        rep_net, rep_net_e2 = rep_nets
+        s_rep, x_rep = rep_net.state_rep(s), rep_net.state_rep(x)
         g_sx, g_xs = target_state_metric(s_rep, x_rep)
         u_target = jax.lax.stop_gradient(jnp.maximum(g_sx, g_xs))
         s_diff = jnp.linalg.norm(s_rep - x_rep, axis=-1, ord=1)
         loss = jnp.mean(optax.huber_loss(s_diff, u_target, delta=1.0))
 
-        s_e2_rep, x_e2_rep = rep_net.target_state_rep(s2), rep_net.target_state_rep(x2)
+        s_e2_rep, x_e2_rep = rep_net_e2.state_rep(s2), rep_net.state_rep(x2)
         g_s_xe2, g_xe2_s = target_state_metric(s_rep, x_e2_rep)
         u_target_e2 = jax.lax.stop_gradient(jnp.maximum(g_s_xe2, g_xe2_s))
         inter_state_diff = jnp.linalg.norm(s_rep - x_e2_rep, axis=-1, ord=1)
@@ -480,82 +466,13 @@ def sac_train_step(
 
         return loss + loss_e2 + loss_2
 
-    rep_loss, rep_grads = nnx.value_and_grad(rep_loss_fn)(rep_net)
+    rep_loss, (rep_grads, rep_grads_e2) = nnx.value_and_grad(rep_loss_fn)(
+        (rep_net, rep_net_e2)
+    )
     key, act_e2_key = jax.random.split(key)
 
-    # rep_grads.source_proj.kernel.set_value(
-    #     jnp.zeros_like(rep_grads.source_proj.kernel.get_value())
-    # )
-    # rep_grads.source_proj.bias.set_value(
-    #     jnp.zeros_like(rep_grads.source_proj.bias.get_value())
-    # )
+    """ Updating the source representation network params """
 
-    # rep_grads.trunk = jax.tree.map(jnp.zeros_like, rep_grads.trunk)
-
-    # rep_grads.state_head.kernel.set_value(
-    #     jnp.zeros_like(rep_grads.state_head.kernel.get_value())
-    # )
-    # rep_grads.state_head.bias.set_value(
-    #     jnp.zeros_like(rep_grads.state_head.bias.get_value())
-    # )
-    # rep_grads.state_action_head_source.kernel.set_value(
-    #     jnp.zeros_like(rep_grads.state_action_head_source.kernel.get_value())
-    # )
-    # rep_grads.state_action_head_source.bias.set_value(
-    #     jnp.zeros_like(rep_grads.state_action_head_source.bias.get_value())
-    # )
-
-    ## freezing the rep actor gradients of the target layers
-    rep_grads_from_actor.target_proj = jax.tree.map(
-        jnp.zeros_like, rep_grads_from_actor.target_proj
-    )
-    rep_grads_from_actor.state_action_head_target = jax.tree.map(
-        jnp.zeros_like, rep_grads_from_actor.state_action_head_target
-    )
-    # rep_grads_from_actor.target_proj.kernel.set_value(
-    #     jnp.zeros_like(rep_grads_from_actor.target_proj.kernel.get_value())
-    # )
-
-    # rep_grads_from_actor.target_proj.bias.set_value(
-    #     jnp.zeros_like(rep_grads_from_actor.target_proj.bias.get_value())
-    # )
-
-    # rep_grads_from_actor.state_action_head_target.kernel.set_value(
-    #     jnp.zeros_like(rep_grads_from_actor.state_action_head_target.kernel.get_value())
-    # )
-    # rep_grads_from_actor.state_action_head_target.bias.set_value(
-    #     jnp.zeros_like(rep_grads_from_actor.state_action_head_target.bias.get_value())
-    # )
-
-    ##freezing the rep critic gradients of the target layers
-    rep_grads_from_critic.target_proj = jax.tree.map(
-        jnp.zeros_like, rep_grads_from_critic.target_proj
-    )
-    rep_grads_from_critic.state_action_head_target = jax.tree.map(
-        jnp.zeros_like, rep_grads_from_critic.state_action_head_target
-    )
-
-    # rep_grads_from_actor.state_action_head_target.bias.set_value(
-    #     jnp.zeros_like(rep_grads_from_actor.state_action_head_target.bias.get_value())
-    # )
-
-    # rep_grads_from_critic.target_proj.kernel.set_value(
-    #     jnp.zeros_like(rep_grads_from_critic.target_proj.kernel.get_value())
-    # )
-
-    # rep_grads_from_critic.target_proj.bias.set_value(
-    #     jnp.zeros_like(rep_grads_from_critic.target_proj.bias.get_value())
-    # )
-
-    # rep_grads_from_critic.state_action_head_target.kernel.set_value(
-    #     jnp.zeros_like(
-    #         rep_grads_from_critic.state_action_head_target.kernel.get_value()
-    #     )
-    # )
-
-    # rep_grads_from_critic.state_action_head_target.bias.set_value(
-    #     jnp.zeros_like(rep_grads_from_critic.state_action_head_target.bias.get_value())
-    # )
     rep_grads_total = jax.tree_util.tree_map(
         lambda a, b, c: a + b + c,
         rep_grads_from_actor,
@@ -565,97 +482,11 @@ def sac_train_step(
 
     rep_net_opt.update(rep_net, rep_grads_total)
 
-    # def actor_e2_loss_fn(actor_e2: SACGaussianActorRep):
-    #     pi_e2, log_pi_e2 = actor_e2(x_e2_rep, act_e2_key)
-    #     pi, _ = actor(x_e2_rep, act_key)
+    """ Updating the target representation network params"""
+    rep_net_e2_opt.update(rep_net_e2, rep_grads_e2)
 
-    #     pi = jax.lax.stop_gradient(pi)
-    #     x_e2_pi_rep, x_e2_pi_e2_rep = (
-    #         rep_net.target_state_source_action_rep(obs_e2, pi),
-    #         rep_net.target_state_action_rep(obs_e2, pi_e2),
-    #     )
-    #     d_pi_pi2, d_pi2_pi = state_action_metric(x_e2_pi_rep, x_e2_pi_e2_rep)
-    #     inter_state_action_diff = jnp.maximum(d_pi2_pi, d_pi_pi2)
-    #     loss = jnp.mean(inter_state_action_diff)
-    #     return loss, jnp.mean(log_pi_e2)
-    def compute_state_rep_diff(s_rep: jnp.ndarray, x_rep: jnp.ndarray):
-        g_sx, g_xs = state_metric(s_rep, x_rep)
-        u = jnp.maximum(g_sx, g_xs)
-        return jnp.mean(u)
+    """ Optimizing for alpha in source actor """
 
-    # def actor_e2_loss_fn(actor: SACGaussianActorRep):
-    #     # grad_s_rep = jax.grad(
-    #     #     lambda s, x: jnp.mean(compute_state_rep_diff(s, x)), argnums=0
-    #     # )(s_rep, x_e2_rep)
-    #     # s_match = s_rep - config.lr * grad_s_rep
-
-    #     pi_e2, log_pi_e2 = actor.sample_target(x_e2_rep, act_e2_key)
-    #     pi, _ = actor(s_rep, act_key)
-
-    #     spi_rep, xpi2_rep = (
-    #         rep_net.rep_source_action_rep(s_rep, pi),
-    #         rep_net.target_state_action_rep(x2, pi_e2),
-    #     )
-    #     g_s_xe2, g_xe2_s = target_state_metric(s_rep, x_e2_rep)
-    #     d_spi_xpi2, d_xpi2_spi = state_action_metric(spi_rep, xpi2_rep)
-    #     lambda_curr = jnp.maximum(d_spi_xpi2, d_xpi2_spi)
-    #     target = jax.lax.stop_gradient(jnp.maximum(g_s_xe2, g_xe2_s))
-    #     return jnp.mean(optax.huber_loss(lambda_curr, target, delta=1.0))
-
-    ######################################################################################## NEED TO FIGURE OUT
-    # def compute_state_rep_diff(s_rep: jnp.ndarray, x_rep: jnp.ndarray):
-    #     g_sx, g_xs = state_metric(s_rep, x_rep)
-    #     u = jnp.maximum(g_sx, g_xs)
-    #     return jnp.mean(u)
-
-    # def actor_e2_loss_fn(actor: SACGaussianActorRep):
-    #     grad_s_rep = jax.grad(
-    #         lambda s, x: jnp.mean(compute_state_rep_diff(s, x)), argnums=0
-    #     )(s_rep, x_e2_rep)
-    #     s_match = s_rep - config.lr * grad_s_rep
-    #     pi, _ = actor(s_match, act_key)
-    #     pi_e2, log_pi_e2 = actor.sample_target(x_e2_rep, act_e2_key)
-
-    #     spi_xpi2_rep, xpi2_spi_rep = (
-    #         rep_net.rep_source_action_rep(s_match, pi),
-    #         rep_net.target_state_action_rep(obs_e2, pi_e2),
-    #     )
-    #     d_pi_pi2, d_pi2_pi = state_action_metric(spi_xpi2_rep, xpi2_spi_rep)
-    #     inter_state_action_diff = jnp.maximum(d_pi2_pi, d_pi_pi2)
-    #     loss = jnp.mean(inter_state_action_diff)
-    #     return loss
-
-    # actor_e2_loss, actor_e2_grads = nnx.value_and_grad(actor_e2_loss_fn)(actor)
-
-    # actor_e2_grads.trunk = jax.tree.map(jnp.zeros_like, actor_e2_grads.trunk)
-    # actor_e2_grads.mean_head.kernel.set_value(
-    #     jnp.zeros_like(actor_e2_grads.mean_head.kernel.get_value())
-    # )
-    # actor_e2_grads.mean_head.bias.set_value(
-    #     jnp.zeros_like(actor_e2_grads.mean_head.bias.get_value())
-    # )
-    # actor_e2_grads.log_std_head.kernel.set_value(
-    #     jnp.zeros_like(actor_e2_grads.log_std_head.kernel.get_value())
-    # )
-    # actor_e2_grads.log_std_head.bias.set_value(
-    #     jnp.zeros_like(actor_e2_grads.log_std_head.bias.get_value())
-    # )
-
-    # ##freezing the target layers for the actor grads obained in source env
-
-    # actor_grads.target_mean_head = jax.tree.map(
-    #     jnp.zeros_like, actor_grads.target_mean_head
-    # )
-    # actor_grads.target_log_std_head = jax.tree.map(
-    #     jnp.zeros_like, actor_grads.target_log_std_head
-    # )
-
-    # actor_grads_total = jax.tree_util.tree_map(
-    #     lambda a, b: a + b, actor_grads, actor_e2_grads
-    # )
-    # actor_opt.update(actor, actor_grads_total)
-
-    ###########################################################################################
     def alpha_loss_fn(log_alpha):
         a = jnp.exp(log_alpha())
         loss = jnp.mean(
@@ -665,16 +496,6 @@ def sac_train_step(
 
     alpha_loss, alpha_grads = nnx.value_and_grad(alpha_loss_fn)(log_alpha)
     alpha_opt.update(log_alpha, alpha_grads)
-
-    # def alpha_loss_fn_e2(log_alpha):
-    #     a = jnp.exp(log_alpha())
-    #     loss = jnp.mean(
-    #         -a * (jax.lax.stop_gradient(log_pi_e2_mean) + config.target_entropy)
-    #     )
-    #     return loss
-
-    # alpha_e2_loss, alpha_e2_grads = nnx.value_and_grad(alpha_loss_fn_e2)(log_alpha_e2)
-    # alpha_e2_opt.update(log_alpha_e2, alpha_e2_grads)
 
     polyak_update(target_critic, critic, config.update_tau)
     polyak_update(target_state_metric, state_metric, config.update_tau)
@@ -712,8 +533,10 @@ def train_n_steps(
     buffer_state_e2,
     buffer_e2,
     running_state_e2,
-    rep_net: RepNetUnified,
+    rep_net: RepNet,
     rep_net_opt: nnx.Optimizer,
+    rep_net_e2: RepNet,
+    rep_net_e2_opt: nnx.Optimizer,
     state_metric: EnsembleStateMetric,
     state_metric_opt: nnx.Optimizer,
     state_action_metric: EnsembleStateActionMetric,
@@ -722,17 +545,17 @@ def train_n_steps(
     min_state_action_to_state_metric_opt: nnx.Optimizer,
     target_state_metric: EnsembleStateMetric,
     target_state_action_to_state_metric: MinStateActiontoStateMetric,
-    actor: SACGaussianActor,
+    actor: SACGaussianActorRep,
     actor_opt: nnx.Optimizer,
-    # actor_e2: SACGaussianActor,
-    # actor_e2_opt: nnx.Optimizer,
+    actor_e2: SACGaussianActorRep,
+    actor_e2_opt: nnx.Optimizer,
     critic: EnsembleCritic,
     critic_opt: nnx.Optimizer,
     target_critic: EnsembleCritic,
     log_alpha: Scalar,
     alpha_opt: nnx.Optimizer,
-    # log_alpha_e2: Scalar,
-    # alpha_opt_e2: nnx.Optimizer,
+    log_alpha_e2: Scalar,
+    alpha_opt_e2: nnx.Optimizer,
     config,
     key: jnp.ndarray,
 ):
@@ -754,6 +577,8 @@ def train_n_steps(
         (
             rep_net,
             rep_net_opt,
+            rep_net_e2,
+            rep_net_e2_opt,
             state_metric,
             state_metric_opt,
             state_action_metric,
@@ -764,19 +589,20 @@ def train_n_steps(
             target_state_action_to_state_metric,
             actor,
             actor_opt,
-            # actor_e2,
-            # actor_e2_opt,
+            actor_e2,
+            actor_e2_opt,
             critic,
             critic_opt,
             target_critic,
             log_alpha,
             alpha_opt,
-            # log_alpha_e2,
-            # alpha_opt_e2,
+            log_alpha_e2,
+            alpha_opt_e2,
         ) = models
 
+        # Collect experiences from the source environment and insert them to buffer
         key, env_key = jax.random.split(key)
-        n_env_state, transition = actor_step_rep_source(
+        n_env_state, transition = actor_step_rep(
             env, env_state, rep_net, actor, env_key, extra_fields=("truncation",)
         )
         buffer_state = buffer.insert(buffer_state, transition)
@@ -784,12 +610,13 @@ def train_n_steps(
             running_state, n_env_state.reward
         )
 
+        # Collect expereinces from the target environment and append them to buffer
         key, env_2_key = jax.random.split(key)
-        n_env_2_state, transition_e2 = actor_step_rep_target(
+        n_env_2_state, transition_e2 = actor_step_rep(
             env_2,
             env_state_2,
-            rep_net,
-            actor,
+            rep_net_e2,
+            actor_e2,
             env_2_key,
             extra_fields=("truncation",),
         )
@@ -803,6 +630,8 @@ def train_n_steps(
             (
                 rep_net,
                 rep_net_opt,
+                rep_net_e2,
+                rep_net_e2_opt,
                 state_metric,
                 state_metric_opt,
                 state_action_metric,
@@ -813,16 +642,19 @@ def train_n_steps(
                 target_state_action_to_state_metric,
                 actor,
                 actor_opt,
-                # actor_e2,
-                # actor_e2_opt,
+                actor_e2,
+                actor_e2_opt,
                 critic,
                 critic_opt,
                 target_critic,
                 log_alpha,
                 alpha_opt,
-                # log_alpha_e2,
-                # alpha_opt_e2,
+                log_alpha_e2,
+                alpha_opt_e2,
             ) = models
+
+            # Sample Batches from both the source and target environments as we need to structure
+            # the representation space
 
             buffer_state, batch = buffer.sample(buffer_state)
             buffer_state_e2, batch_e2 = buffer_e2.sample(buffer_state_e2)
@@ -831,6 +663,8 @@ def train_n_steps(
             val = sac_train_step(
                 rep_net,
                 rep_net_opt,
+                rep_net_e2,
+                rep_net_e2_opt,
                 state_metric,
                 state_metric_opt,
                 state_action_metric,
@@ -841,15 +675,15 @@ def train_n_steps(
                 target_state_action_to_state_metric,
                 actor,
                 actor_opt,
-                # actor_e2,
-                # actor_e2_opt,
+                actor_e2,
+                actor_e2_opt,
                 critic,
                 critic_opt,
                 target_critic,
                 log_alpha,
                 alpha_opt,
-                # log_alpha_e2,
-                # alpha_opt_e2,
+                log_alpha_e2,
+                alpha_opt_e2,
                 batch,
                 batch_e2,
                 config,
@@ -859,6 +693,8 @@ def train_n_steps(
             models = (
                 rep_net,
                 rep_net_opt,
+                rep_net_e2,
+                rep_net_e2_opt,
                 state_metric,
                 state_metric_opt,
                 state_action_metric,
@@ -869,15 +705,15 @@ def train_n_steps(
                 target_state_action_to_state_metric,
                 actor,
                 actor_opt,
-                # actor_e2,
-                # actor_e2_opt,
+                actor_e2,
+                actor_e2_opt,
                 critic,
                 critic_opt,
                 target_critic,
                 log_alpha,
                 alpha_opt,
-                # log_alpha_e2,
-                # alpha_opt_e2,
+                log_alpha_e2,
+                alpha_opt_e2,
             )
 
             return (key, env_state, buffer_state, buffer_state_e2, models, val)
@@ -886,6 +722,8 @@ def train_n_steps(
         models = (
             rep_net,
             rep_net_opt,
+            rep_net_e2,
+            rep_net_e2_opt,
             state_metric,
             state_metric_opt,
             state_action_metric,
@@ -896,15 +734,15 @@ def train_n_steps(
             target_state_action_to_state_metric,
             actor,
             actor_opt,
-            # actor_e2,
-            # actor_e2_opt,
+            actor_e2,
+            actor_e2_opt,
             critic,
             critic_opt,
             target_critic,
             log_alpha,
             alpha_opt,
-            # log_alpha_e2,
-            # alpha_opt_e2,
+            log_alpha_e2,
+            alpha_opt_e2,
         )
         key, _, buffer_state, buffer_state_e2, models, val = nnx.fori_loop(
             0,
@@ -915,6 +753,8 @@ def train_n_steps(
         (
             rep_net,
             rep_net_opt,
+            rep_net_e2,
+            rep_net_e2_opt,
             state_metric,
             state_metric_opt,
             state_action_metric,
@@ -925,15 +765,15 @@ def train_n_steps(
             target_state_action_to_state_metric,
             actor,
             actor_opt,
-            # actor_e2,
-            # actor_e2_opt,
+            actor_e2,
+            actor_e2_opt,
             critic,
             critic_opt,
             target_critic,
             log_alpha,
             alpha_opt,
-            # log_alpha_e2,
-            # alpha_opt_e2,
+            log_alpha_e2,
+            alpha_opt_e2,
         ) = models
         return (
             key,
@@ -946,6 +786,8 @@ def train_n_steps(
             (
                 rep_net,
                 rep_net_opt,
+                rep_net_e2,
+                rep_net_e2_opt,
                 state_metric,
                 state_metric_opt,
                 state_action_metric,
@@ -956,15 +798,15 @@ def train_n_steps(
                 target_state_action_to_state_metric,
                 actor,
                 actor_opt,
-                # actor_e2,
-                # actor_e2_opt,
+                actor_e2,
+                actor_e2_opt,
                 critic,
                 critic_opt,
                 target_critic,
                 log_alpha,
                 alpha_opt,
-                # log_alpha_e2,
-                # alpha_opt_e2,
+                log_alpha_e2,
+                alpha_opt_e2,
             ),
             val,
         )
@@ -981,6 +823,8 @@ def train_n_steps(
         (
             rep_net,
             rep_net_opt,
+            rep_net_e2,
+            rep_net_e2_opt,
             state_metric,
             state_metric_opt,
             state_action_metric,
@@ -991,15 +835,15 @@ def train_n_steps(
             target_state_action_to_state_metric,
             actor,
             actor_opt,
-            # actor_e2,
-            # actor_e2_opt,
+            actor_e2,
+            actor_e2_opt,
             critic,
             critic_opt,
             target_critic,
             log_alpha,
             alpha_opt,
-            # log_alpha_e2,
-            # alpha_opt_e2,
+            log_alpha_e2,
+            alpha_opt_e2,
         ),
         init_val,
     )
@@ -1019,6 +863,8 @@ def train_n_steps(
     (
         rep_net,
         rep_net_opt,
+        rep_net_e2,
+        rep_net_e2_opt,
         state_metric,
         state_metric_opt,
         state_action_metric,
@@ -1029,15 +875,15 @@ def train_n_steps(
         target_state_action_to_state_metric,
         actor,
         actor_opt,
-        # actor_e2,
-        # actor_e2_opt,
+        actor_e2,
+        actor_e2_opt,
         critic,
         critic_opt,
         target_critic,
         log_alpha,
         alpha_opt,
-        # log_alpha_e2,
-        # alpha_opt_e2,
+        log_alpha_e2,
+        alpha_opt_e2,
     ) = models
 
     return (
@@ -1053,8 +899,10 @@ def train_n_steps(
 
 
 def transfer_tuning(
-    rep_net: RepNetUnified,
+    rep_net: RepNet,
     rep_net_opt: nnx.Optimizer,
+    rep_net_e2: RepNet,
+    rep_net_e2_opt: nnx.Optimizer,
     state_metric: EnsembleStateMetric,
     state_metric_opt: nnx.Optimizer,
     state_action_metric: EnsembleStateActionMetric,
@@ -1065,15 +913,15 @@ def transfer_tuning(
     target_state_action_to_state_metric: MinStateActiontoStateMetric,
     actor: SACGaussianActorRep,
     actor_opt: nnx.Optimizer,
-    # actor_e2: SACGaussianActorRep,
-    # actor_e2_opt: nnx.Optimizer,
+    actor_e2: SACGaussianActorRep,
+    actor_e2_opt: nnx.Optimizer,
     critic: EnsembleCriticRep,
     critic_opt: nnx.Optimizer,
     target_critic: EnsembleCriticRep,
     log_alpha: Scalar,
     alpha_opt: nnx.Optimizer,
-    # log_alpha_e2: Scalar,
-    # alpha_e2_opt: nnx.Optimizer,
+    log_alpha_e2: Scalar,
+    alpha_e2_opt: nnx.Optimizer,
     data: Transition,
     data_e2: Transition,
     config,
@@ -1098,7 +946,7 @@ def transfer_tuning(
 
     key, next_key = jax.random.split(key)
 
-    next_obs_rep = rep_net.source_state_rep(next_obs)
+    next_obs_rep = rep_net.state_rep(next_obs)
     next_act, next_log_prob = actor(next_obs_rep, next_key)
 
     s, a, r, s_next = obs, act, reward[:, None], next_obs
@@ -1122,14 +970,14 @@ def transfer_tuning(
 
     ## shape mismatch error fixed
 
-    s_rep, x_rep = rep_net.source_state_rep(s), rep_net.source_state_rep(x)
+    s_rep, x_rep = rep_net.state_rep(s), rep_net.state_rep(x)
     s_next_rep, x_next_rep = (
-        rep_net.source_state_rep(s_next),
-        rep_net.source_state_rep(x_next),
+        rep_net.state_rep(s_next),
+        rep_net.state_rep(x_next),
     )
     sa_rep, xb_rep = (
-        rep_net.source_state_action_rep(s, a),
-        rep_net.source_state_action_rep(x, b),
+        rep_net.state_action_rep(s, a),
+        rep_net.state_action_rep(x, b),
     )
 
     g_sx_next, g_xs_next = target_state_metric(s_next_rep, x_next_rep)
@@ -1137,6 +985,7 @@ def transfer_tuning(
     lambda_target = jax.lax.stop_gradient(jnp.abs(r - y) + discount * u_target)
 
     ## env2 representations
+    """ Following batch is from the target environments"""
 
     s2, a2, r2, s2_next = obs_e2, act_e2, reward_e2[:, None], next_obs_e2
     batch_e2 = jnp.concatenate([s2, a2, r2, s2_next], axis=-1)
@@ -1162,14 +1011,14 @@ def transfer_tuning(
         x2_next[:, None, :],
     )
 
-    s_e2_rep, x_e2_rep = rep_net.target_state_rep(s2), rep_net.target_state_rep(x2)
+    s_e2_rep, x_e2_rep = rep_net_e2.state_rep(s2), rep_net_e2.state_rep(x2)
     s_next_e2_rep, x_next_e2_rep = (
-        rep_net.target_state_rep(s2_next),
-        rep_net.target_state_rep(x2_next),
+        rep_net_e2.state_rep(s2_next),
+        rep_net_e2.state_rep(x2_next),
     )
     sa_e2_rep, xb_e2_rep = (
-        rep_net.target_state_action_rep(s2, a2),
-        rep_net.target_state_action_rep(x2, b2),
+        rep_net_e2.state_action_rep(s2, a2),
+        rep_net_e2.state_action_rep(x2, b2),
     )
 
     g_s_xe2_next, g_xe2_s_next = target_state_metric(s_next_rep, x_next_e2_rep)
@@ -1185,11 +1034,12 @@ def transfer_tuning(
     def compute_state_diff(
         s: jnp.ndarray,
         x: jnp.ndarray,
-        rep_net: RepNetUnified,
+        rep_net: RepNet,
+        rep_net_e2: RepNet,
         state_metric: EnsembleStateMetric,
     ):
         # (s, x) --> (source env state, target env state)
-        s_rep, x_rep = rep_net.source_state_rep(s), rep_net.target_state_rep(x)
+        s_rep, x_rep = rep_net.state_rep(s), rep_net_e2.state_rep(x)
         g_sx, g_xs = state_metric(s_rep, x_rep)
         u = jnp.maximum(g_sx, g_xs)
         return jnp.mean(u)
@@ -1199,14 +1049,15 @@ def transfer_tuning(
         pi: jnp.ndarray,
         x: jnp.ndarray,
         b: jnp.ndarray,
-        rep_net: RepNetUnified,
-        state_action_metric: EnsembleStateMetric,
+        rep_net: RepNet,
+        rep_net_e2: RepNet,
+        state_action_metric: EnsembleStateActionMetric,
     ):
         # (s, pi) --> source state, corresponding action given by policy from env 1
         # (x, b) --> target state, some ranodm action
         spi_rep, xb_rep = (
-            rep_net.source_state_action_rep(s, pi),
-            rep_net.target_state_action_rep(x, b),
+            rep_net.state_action_rep(s, pi),
+            rep_net_e2.state_action_rep(x, b),
         )
         d_spi_xb, d_xb_spi = state_action_metric(spi_rep, xb_rep)
         return jnp.mean(jnp.maximum(d_spi_xb, d_xb_spi))
@@ -1222,18 +1073,24 @@ def transfer_tuning(
 
     def state_grad_steps(i, carry):
         (x, models, s_eq) = carry
-        (rep_net, state_metric) = models
+        (rep_net, rep_net_e2, state_metric) = models
         opt = optax.adam(config.lr)
         opt_state = opt.init(s_eq)
-        grad_s = jax.grad(lambda s: compute_state_diff(s, x, rep_net, state_metric))(
-            s_eq
-        )
+        grad_s = jax.grad(
+            lambda s: compute_state_diff(s, x, rep_net, rep_net_e2, state_metric)
+        )(s_eq)
         updates, opt_state = opt.update(grad_s, opt_state)
         s_eq = optax.apply_updates(s_eq, updates)
         return (x, models, s_eq)
 
-    (s2, (rep_net, state_metric), s_eq) = nnx.fori_loop(
-        0, grad_steps, state_grad_steps, (s2, (rep_net, state_metric), s)
+    # (s2, (rep_net, state_metric), s_eq) = nnx.fori_loop(
+    #     0, grad_steps, state_grad_steps, (s2, (rep_net, state_metric), s)
+    # )
+    (s2, (rep_net, rep_net_e2, state_metric), s_eq) = nnx.fori_loop(
+        0,
+        grad_steps,
+        state_grad_steps,
+        (s2, (rep_net, rep_net_e2, state_metric), jnp.zeros_like(s)),
     )
 
     # def action_grad_steps(i, carry):
@@ -1248,12 +1105,14 @@ def transfer_tuning(
     #     return (s, pi, x, models, b_eq)
     def action_grad_steps(i, carry):
         (s, pi, x, models, b_eq) = carry
-        (rep_net, state_action_metric) = models
+        (rep_net, rep_net_e2, state_action_metric) = models
         opt = optax.adam(config.lr)
         opt_state = opt.init(b_eq)
         grads_b = jax.grad(
             lambda b: jnp.mean(
-                compute_state_action_diff(s, pi, x, b, rep_net, state_action_metric)
+                compute_state_action_diff(
+                    s, pi, x, b, rep_net, rep_net_e2, state_action_metric
+                )
             )
         )(b_eq)
         updates, opt_state = opt.update(grads_b, opt_state)
@@ -1262,46 +1121,46 @@ def transfer_tuning(
 
     key, act_key, act2_key = jax.random.split(key, 3)
 
-    pi, _ = actor(rep_net.source_state_rep(s_eq), act_key)
+    pi, _ = actor(rep_net.state_rep(s_eq), act_key)
 
     pi_eq = a2
 
-    (s_eq, pi, s2, (rep_net, state_action_metric), pi_eq) = nnx.fori_loop(
+    (s_eq, pi, s2, (rep_net, rep_net_e2, state_action_metric), pi_eq) = nnx.fori_loop(
         0,
         grad_steps,
         action_grad_steps,
-        (s_eq, pi, s2, (rep_net, state_action_metric), pi_eq),
+        (s_eq, pi, s2, (rep_net, rep_net_e2, state_action_metric), jnp.zeros_like(a2)),
     )
 
-    def actor_e2_loss_fn(actor: SACGaussianActorRep):
-        actions, _ = actor.sample_target(s_e2_rep, act2_key)
+    # def actor_e2_loss_fn(actor: SACGaussianActorRep):
+    #     actions, _ = actor.sample_target(s_e2_rep, act2_key)
+    #     return jnp.mean(
+    #         optax.huber_loss(actions, jax.lax.stop_gradient(pi_eq), delta=1.0)
+    #     )
+
+    def actor_e2_loss_fn(actor_n_rep):
+        actor, rep = actor_n_rep
+        s2_rep = rep.state_rep(s2)
+        actions, _ = actor(s2_rep, act2_key)
         return jnp.mean(
             optax.huber_loss(actions, jax.lax.stop_gradient(pi_eq), delta=1.0)
         )
 
-    transfer_loss, actor_grads = nnx.value_and_grad(actor_e2_loss_fn)(actor)
-
-    actor_grads.trunk = jax.tree.map(jnp.zeros_like, actor_grads.trunk)
-    actor_grads.mean_head.kernel.set_value(
-        jnp.zeros_like(actor_grads.mean_head.kernel.get_value())
-    )
-    actor_grads.mean_head.bias.set_value(
-        jnp.zeros_like(actor_grads.mean_head.bias.get_value())
+    # transfer_loss, actor_grads = nnx.value_and_grad(actor_e2_loss_fn)(actor)
+    transfer_loss, (actor_grads, rep_grads) = nnx.value_and_grad(actor_e2_loss_fn)(
+        (actor_e2, rep_net_e2)
     )
 
-    actor_grads.log_std_head.kernel.set_value(
-        jnp.zeros_like(actor_grads.log_std_head.kernel.get_value())
-    )
-    actor_grads.log_std_head.bias.set_value(
-        jnp.zeros_like(actor_grads.log_std_head.bias.get_value())
-    )
+    rep_net_e2_opt.update(rep_net_e2, rep_grads)
 
-    actor_opt.update(actor, actor_grads)
+    actor_e2_opt.update(actor_e2, actor_grads)
 
-    state_matching_loss = compute_state_diff(s_eq, s2, rep_net, state_metric)
-    pi_eq, _ = actor.sample_target(s_e2_rep, act2_key)
+    state_matching_loss = compute_state_diff(
+        s_eq, s2, rep_net, rep_net_e2, state_metric
+    )
+    pi_eq, _ = actor_e2(s_e2_rep, act2_key)
     action_matching_loss = compute_state_action_diff(
-        s_eq, pi, s2, pi_eq, rep_net, state_action_metric
+        s_eq, pi, s2, pi_eq, rep_net, rep_net_e2, state_action_metric
     )
 
     return transfer_loss, state_matching_loss, action_matching_loss
@@ -1319,8 +1178,10 @@ def transfer_train_n_step(
     buffer_state_e2,
     buffer_e2,
     running_state_e2,
-    rep_net: RepNetUnified,
+    rep_net: RepNet,
     rep_net_opt: nnx.Optimizer,
+    rep_net_e2: RepNet,
+    rep_net_e2_opt: nnx.Optimizer,
     state_metric: EnsembleStateMetric,
     state_metric_opt: nnx.Optimizer,
     state_action_metric: EnsembleStateActionMetric,
@@ -1329,17 +1190,17 @@ def transfer_train_n_step(
     min_state_action_to_state_metric_opt: nnx.Optimizer,
     target_state_metric: EnsembleStateMetric,
     target_state_action_to_state_metric: MinStateActiontoStateMetric,
-    actor: SACGaussianActor,
+    actor: SACGaussianActorRep,
     actor_opt: nnx.Optimizer,
-    # actor_e2: SACGaussianActor,
-    # actor_e2_opt: nnx.Optimizer,
+    actor_e2: SACGaussianActorRep,
+    actor_e2_opt: nnx.Optimizer,
     critic: EnsembleCritic,
     critic_opt: nnx.Optimizer,
     target_critic: EnsembleCritic,
     log_alpha: Scalar,
     alpha_opt: nnx.Optimizer,
-    # log_alpha_e2: Scalar,
-    # alpha_opt_e2: nnx.Optimizer,
+    log_alpha_e2: Scalar,
+    alpha_opt_e2: nnx.Optimizer,
     config,
     key: jnp.ndarray,
 ):
@@ -1361,6 +1222,8 @@ def transfer_train_n_step(
         (
             rep_net,
             rep_net_opt,
+            rep_net_e2,
+            rep_net_e2_opt,
             state_metric,
             state_metric_opt,
             state_action_metric,
@@ -1371,19 +1234,19 @@ def transfer_train_n_step(
             target_state_action_to_state_metric,
             actor,
             actor_opt,
-            # actor_e2,
-            # actor_e2_opt,
+            actor_e2,
+            actor_e2_opt,
             critic,
             critic_opt,
             target_critic,
             log_alpha,
             alpha_opt,
-            # log_alpha_e2,
-            # alpha_opt_e2,
+            log_alpha_e2,
+            alpha_opt_e2,
         ) = models
 
         key, env_key = jax.random.split(key)
-        n_env_state, transition = actor_step_rep_source(
+        n_env_state, transition = actor_step_rep(
             env, env_state, rep_net, actor, env_key, extra_fields=("truncation",)
         )
         buffer_state = buffer.insert(buffer_state, transition)
@@ -1392,11 +1255,11 @@ def transfer_train_n_step(
         )
 
         key, env_2_key = jax.random.split(key)
-        n_env_2_state, transition_e2 = actor_step_rep_target(
+        n_env_2_state, transition_e2 = actor_step_rep(
             env_2,
             env_state_2,
-            rep_net,
-            actor,
+            rep_net_e2,
+            actor_e2,
             env_2_key,
             extra_fields=("truncation",),
         )
@@ -1410,6 +1273,8 @@ def transfer_train_n_step(
             (
                 rep_net,
                 rep_net_opt,
+                rep_net_e2,
+                rep_net_e2_opt,
                 state_metric,
                 state_metric_opt,
                 state_action_metric,
@@ -1420,15 +1285,15 @@ def transfer_train_n_step(
                 target_state_action_to_state_metric,
                 actor,
                 actor_opt,
-                # actor_e2,
-                # actor_e2_opt,
+                actor_e2,
+                actor_e2_opt,
                 critic,
                 critic_opt,
                 target_critic,
                 log_alpha,
                 alpha_opt,
-                # log_alpha_e2,
-                # alpha_opt_e2,
+                log_alpha_e2,
+                alpha_opt_e2,
             ) = models
 
             buffer_state, batch = buffer.sample(buffer_state)
@@ -1438,6 +1303,8 @@ def transfer_train_n_step(
             val = transfer_tuning(
                 rep_net,
                 rep_net_opt,
+                rep_net_e2,
+                rep_net_e2_opt,
                 state_metric,
                 state_metric_opt,
                 state_action_metric,
@@ -1448,15 +1315,15 @@ def transfer_train_n_step(
                 target_state_action_to_state_metric,
                 actor,
                 actor_opt,
-                # actor_e2,
-                # actor_e2_opt,
+                actor_e2,
+                actor_e2_opt,
                 critic,
                 critic_opt,
                 target_critic,
                 log_alpha,
                 alpha_opt,
-                # log_alpha_e2,
-                # alpha_opt_e2,
+                log_alpha_e2,
+                alpha_opt_e2,
                 batch,
                 batch_e2,
                 config,
@@ -1466,6 +1333,8 @@ def transfer_train_n_step(
             models = (
                 rep_net,
                 rep_net_opt,
+                rep_net_e2,
+                rep_net_e2_opt,
                 state_metric,
                 state_metric_opt,
                 state_action_metric,
@@ -1476,15 +1345,15 @@ def transfer_train_n_step(
                 target_state_action_to_state_metric,
                 actor,
                 actor_opt,
-                # actor_e2,
-                # actor_e2_opt,
+                actor_e2,
+                actor_e2_opt,
                 critic,
                 critic_opt,
                 target_critic,
                 log_alpha,
                 alpha_opt,
-                # log_alpha_e2,
-                # alpha_opt_e2,
+                log_alpha_e2,
+                alpha_opt_e2,
             )
 
             return (key, env_state, buffer_state, buffer_state_e2, models, val)
@@ -1493,6 +1362,8 @@ def transfer_train_n_step(
         models = (
             rep_net,
             rep_net_opt,
+            rep_net_e2,
+            rep_net_e2_opt,
             state_metric,
             state_metric_opt,
             state_action_metric,
@@ -1503,15 +1374,15 @@ def transfer_train_n_step(
             target_state_action_to_state_metric,
             actor,
             actor_opt,
-            # actor_e2,
-            # actor_e2_opt,
+            actor_e2,
+            actor_e2_opt,
             critic,
             critic_opt,
             target_critic,
             log_alpha,
             alpha_opt,
-            # log_alpha_e2,
-            # alpha_opt_e2,
+            log_alpha_e2,
+            alpha_opt_e2,
         )
         key, _, buffer_state, buffer_state_e2, models, val = nnx.fori_loop(
             0,
@@ -1522,6 +1393,8 @@ def transfer_train_n_step(
         (
             rep_net,
             rep_net_opt,
+            rep_net_e2,
+            rep_net_e2_opt,
             state_metric,
             state_metric_opt,
             state_action_metric,
@@ -1532,15 +1405,15 @@ def transfer_train_n_step(
             target_state_action_to_state_metric,
             actor,
             actor_opt,
-            # actor_e2,
-            # actor_e2_opt,
+            actor_e2,
+            actor_e2_opt,
             critic,
             critic_opt,
             target_critic,
             log_alpha,
             alpha_opt,
-            # log_alpha_e2,
-            # alpha_opt_e2,
+            log_alpha_e2,
+            alpha_opt_e2,
         ) = models
         return (
             key,
@@ -1553,6 +1426,8 @@ def transfer_train_n_step(
             (
                 rep_net,
                 rep_net_opt,
+                rep_net_e2,
+                rep_net_e2_opt,
                 state_metric,
                 state_metric_opt,
                 state_action_metric,
@@ -1563,15 +1438,15 @@ def transfer_train_n_step(
                 target_state_action_to_state_metric,
                 actor,
                 actor_opt,
-                # actor_e2,
-                # actor_e2_opt,
+                actor_e2,
+                actor_e2_opt,
                 critic,
                 critic_opt,
                 target_critic,
                 log_alpha,
                 alpha_opt,
-                # log_alpha_e2,
-                # alpha_opt_e2,
+                log_alpha_e2,
+                alpha_opt_e2,
             ),
             val,
         )
@@ -1588,6 +1463,8 @@ def transfer_train_n_step(
         (
             rep_net,
             rep_net_opt,
+            rep_net_e2,
+            rep_net_e2_opt,
             state_metric,
             state_metric_opt,
             state_action_metric,
@@ -1598,15 +1475,15 @@ def transfer_train_n_step(
             target_state_action_to_state_metric,
             actor,
             actor_opt,
-            # actor_e2,
-            # actor_e2_opt,
+            actor_e2,
+            actor_e2_opt,
             critic,
             critic_opt,
             target_critic,
             log_alpha,
             alpha_opt,
-            # log_alpha_e2,
-            # alpha_opt_e2,
+            log_alpha_e2,
+            alpha_opt_e2,
         ),
         init_val,
     )
@@ -1626,6 +1503,8 @@ def transfer_train_n_step(
     (
         rep_net,
         rep_net_opt,
+        rep_net_e2,
+        rep_net_e2_opt,
         state_metric,
         state_metric_opt,
         state_action_metric,
@@ -1636,15 +1515,15 @@ def transfer_train_n_step(
         target_state_action_to_state_metric,
         actor,
         actor_opt,
-        # actor_e2,
-        # actor_e2_opt,
+        actor_e2,
+        actor_e2_opt,
         critic,
         critic_opt,
         target_critic,
         log_alpha,
         alpha_opt,
-        # log_alpha_e2,
-        # alpha_opt_e2,
+        log_alpha_e2,
+        alpha_opt_e2,
     ) = models
 
     return (
@@ -1659,7 +1538,7 @@ def transfer_train_n_step(
     )
 
 
-""" Copied from claude """
+# Copied from claude
 
 
 def prefill_buffer_source(
@@ -1675,7 +1554,7 @@ def prefill_buffer_source(
     def body(carry, _):
         key, env_state, buffer_state = carry
         key, subkey = jax.random.split(key)
-        n_state, transition = actor_step_rep_source(
+        n_state, transition = actor_step_rep(
             env=env,
             env_state=env_state,
             repnet=rep_net,
@@ -1709,7 +1588,7 @@ def prefill_buffer_target(
     def body(carry, _):
         key, env_state, buffer_state = carry
         key, subkey = jax.random.split(key)
-        n_state, transition = actor_step_rep_target(
+        n_state, transition = actor_step_rep(
             env=env,
             env_state=env_state,
             repnet=rep_net,
@@ -1815,18 +1694,33 @@ def main(args, cfg_env=None):
     # Freeze config into an immutable Flax struct (required for nnx.jit stability)
     config_data = make_static_config_from_dict("SACConfig", config)()
 
-    rep_net = RepNetUnified(
+    rep_net = RepNet(
         rngs=rngs,
-        source_obs_dim=obs_dim,
-        source_act_dim=act_dim,
-        target_obs_dim=obs_dim_e2,
-        target_act_dim=act_dim_e2,
+        obs_dim=obs_dim,
+        act_dim=act_dim,
         rep_dim=rep_dim,
         hidden_dim=config["hidden_size"],
     )
 
     rep_net_opt = nnx.Optimizer(
         model=rep_net,
+        tx=optax.chain(
+            optax.clip_by_global_norm(config["max_grad_norm"]),
+            optax.adam(learning_rate=config["lr"]),
+        ),
+        wrt=nnx.Param,
+    )
+
+    rep_net_e2 = RepNet(
+        rngs=rngs,
+        obs_dim=obs_dim_e2,
+        act_dim=act_dim_e2,
+        rep_dim=rep_dim,
+        hidden_dim=config["hidden_size"],
+    )
+
+    rep_net_e2_opt = nnx.Optimizer(
+        model=rep_net_e2,
         tx=optax.chain(
             optax.clip_by_global_norm(config["max_grad_norm"]),
             optax.adam(learning_rate=config["lr"]),
@@ -1884,7 +1778,6 @@ def main(args, cfg_env=None):
         rngs=rngs,
         rep_dim=rep_dim,
         act_dim=act_dim,
-        target_act_dim=act_dim_e2,
         hidden_size=config["hidden_size"],
     )
 
@@ -1897,20 +1790,20 @@ def main(args, cfg_env=None):
         wrt=nnx.Param,
     )
 
-    # actor_e2 = SACGaussianActorRep(
-    #     rngs=rngs,
-    #     rep_dim=rep_dim,
-    #     act_dim=act_dim_e2,
-    #     hidden_size=config["hidden_size"],
-    # )
-    # actor_e2_opt = nnx.Optimizer(
-    #     model=actor_e2,
-    #     tx=optax.chain(
-    #         optax.clip_by_global_norm(config["max_grad_norm"]),
-    #         optax.adam(learning_rate=config["lr"]),
-    #     ),
-    #     wrt=nnx.Param,
-    # )
+    actor_e2 = SACGaussianActorRep(
+        rngs=rngs,
+        rep_dim=rep_dim,
+        act_dim=act_dim_e2,
+        hidden_size=config["hidden_size"],
+    )
+    actor_e2_opt = nnx.Optimizer(
+        model=actor_e2,
+        tx=optax.chain(
+            optax.clip_by_global_norm(config["max_grad_norm"]),
+            optax.adam(learning_rate=config["lr"]),
+        ),
+        wrt=nnx.Param,
+    )
 
     critic = EnsembleCriticRep(
         rngs=rngs, rep_dim=rep_dim, hidden_size=config["hidden_size"]
@@ -1931,10 +1824,10 @@ def main(args, cfg_env=None):
     alpha_opt = nnx.Optimizer(
         model=log_alpha, tx=optax.adam(learning_rate=config["lr"]), wrt=nnx.Param
     )
-    # log_alpha_e2 = Scalar(float(jnp.log(config["init_temperature"])))
-    # alpha_opt_e2 = nnx.Optimizer(
-    #     model=log_alpha_e2, tx=optax.adam(learning_rate=config["lr"]), wrt=nnx.Param
-    # )
+    log_alpha_e2 = Scalar(float(jnp.log(config["init_temperature"])))
+    alpha_opt_e2 = nnx.Optimizer(
+        model=log_alpha_e2, tx=optax.adam(learning_rate=config["lr"]), wrt=nnx.Param
+    )
 
     # ── replay buffer ─────────────────────────────────────────────────────
     dummy_obs = jnp.zeros((1, obs_dim))
@@ -2018,8 +1911,8 @@ def main(args, cfg_env=None):
         env=env2,
         env_state=env2_state,
         buffer_state=buffer_state_e2,
-        rep_net=rep_net,
-        policy=actor,
+        rep_net=rep_net_e2,
+        policy=actor_e2,
         buffer=buffer_e2,
         num_itr=config["warmup_samples"],
     )
@@ -2039,6 +1932,8 @@ def main(args, cfg_env=None):
             running_state=running_state,
             rep_net=rep_net,
             rep_net_opt=rep_net_opt,
+            rep_net_e2=rep_net_e2,
+            rep_net_e2_opt=rep_net_e2_opt,
             state_metric=state_metric,
             state_metric_opt=state_metric_opt,
             state_action_metric=state_action_metric,
@@ -2054,8 +1949,8 @@ def main(args, cfg_env=None):
             target_critic=target_critic,
             log_alpha=log_alpha,
             alpha_opt=alpha_opt,
-            # log_alpha_e2=log_alpha_e2,
-            # alpha_opt_e2=alpha_opt_e2,
+            log_alpha_e2=log_alpha_e2,
+            alpha_opt_e2=alpha_opt_e2,
             config=config_data,
             key=subkey,
             env_2=env2,
@@ -2063,8 +1958,8 @@ def main(args, cfg_env=None):
             buffer_e2=buffer_e2,
             buffer_state_e2=buffer_state_e2,
             running_state_e2=running_state_e2,
-            # actor_e2=actor_e2,
-            # actor_e2_opt=actor_e2_opt,
+            actor_e2=actor_e2,
+            actor_e2_opt=actor_e2_opt,
         )
 
         (
@@ -2097,6 +1992,8 @@ def main(args, cfg_env=None):
             running_state=running_state,
             rep_net=rep_net,
             rep_net_opt=rep_net_opt,
+            rep_net_e2=rep_net_e2,
+            rep_net_e2_opt=rep_net_e2_opt,
             state_metric=state_metric,
             state_metric_opt=state_metric_opt,
             state_action_metric=state_action_metric,
@@ -2112,8 +2009,8 @@ def main(args, cfg_env=None):
             target_critic=target_critic,
             log_alpha=log_alpha,
             alpha_opt=alpha_opt,
-            # log_alpha_e2=log_alpha_e2,
-            # alpha_opt_e2=alpha_opt_e2,
+            log_alpha_e2=log_alpha_e2,
+            alpha_opt_e2=alpha_opt_e2,
             config=config_data,
             key=subkey,
             env_2=env2,
@@ -2121,8 +2018,8 @@ def main(args, cfg_env=None):
             buffer_e2=buffer_e2,
             buffer_state_e2=buffer_state_e2,
             running_state_e2=running_state_e2,
-            # actor_e2=actor_e2,
-            # actor_e2_opt=actor_e2_opt,
+            actor_e2=actor_e2,
+            actor_e2_opt=actor_e2_opt,
         )
 
         (

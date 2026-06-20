@@ -76,115 +76,7 @@ def polyak_update(target_model, curr_model, tau: float):
     return target_model
 
 
-# def sac_train_step(
-#         actor : SACGaussianActor,
-#         actor_opt : nnx.Optimizer,
-#         critic : EnsembleCritic,
-#         critic_opt : nnx.Optimizer,
-#         target_critic : EnsembleCritic,
-#         log_alpha : Scalar,
-#         alpha_opt : nnx.Optimizer,
-#         data : Transition,
-#         config,
-#         key : jnp.ndarray
-# ):
-#     obs = data.observation
-#     act = data.action
-#     reward = data.reward
-#     discount = data.discount
-#     next_obs = data.next_observation
-#     alpha = jnp.exp(log_alpha())
-
-#     key, next_key = jax.random.split(key)
-#     next_act, next_log_prob = actor(next_obs, next_key)
-
-#     def critic_loss_fn(critic):
-#         q1_t , q2_t = target_critic( jnp.concatenate([next_obs, next_act], axis = -1))
-#         backup = reward + config.gamma * discount * (jnp.minimum(q1_t, q2_t) - alpha * next_log_prob)
-#         backup = jax.lax.stop_gradient(backup)
-#         q1, q2 = critic(jnp.concatenate([obs, act], axis = -1))
-#         loss = jnp.mean((q1 - backup)**2) + jnp.mean((q2 - backup)**2)
-#         return loss, (jnp.mean(q1), jnp.mean(q2))
-
-#     (critic_loss, (q1_mean, q2_mean)), critic_grads = nnx.value_and_grad(critic_loss_fn, has_aux = True)(critic)
-#     critic_opt.update(critic, critic_grads)
-
-#     key, act_key = jax.random.split(key)
-
-#     def actor_loss_fn(actor):
-#         pi, log_pi = actor(obs, act_key)
-#         q1, q2 = critic(jnp.concatenate([obs, pi], axis = -1))
-#         loss = jnp.mean(alpha * log_pi - jnp.minimum(q1, q2))
-#         return loss, jnp.mean(log_pi)
-
-#     (actor_loss, log_pi_mean), actor_grads = nnx.value_and_grad(actor_loss_fn, has_aux = True)(actor)
-#     actor_opt.update(actor, actor_grads)
-
-#     def alpha_loss_fn(log_alpha):
-#         a = jnp.exp(log_alpha())
-#         loss = jnp.mean(-a * (jax.lax.stop_gradient(log_pi_mean) + config.target_entropy))
-#         return loss
-
-#     alpha_loss, alpha_grads = nnx.value_and_grad(alpha_loss_fn)(log_alpha)
-#     alpha_opt.update(log_alpha, alpha_grads)
-
-#     polyak_update(target_critic, critic, config.update_tau)
-
-#     return critic_loss, actor_loss, alpha_loss, alpha, log_pi_mean, q1_mean, q2_mean
-
-# @functools.partial(nnx.jit, static_argnames = ("env", "buffer"))
-# def train_n_steps(env, env_state, buffer_state, buffer, running_state, actor : SACGaussianActor, actor_opt : nnx.Optimizer, critic : EnsembleCritic, critic_opt : nnx.Optimizer, target_critic : EnsembleCritic, log_alpha : Scalar, alpha_opt : nnx.Optimizer, config, key : jnp.ndarray):
-
-#     num_steps = config.log_freq
-
-#     def body_fun(i, carry):
-#         key, env_state, buffer_state, running_state, models, val = carry
-#         (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt) = models
-
-#         key, env_key = jax.random.split(key)
-#         n_env_state, transition = actor_step(env, env_state, actor, env_key, extra_fields = ("truncation", ))
-#         buffer_state = buffer.insert(buffer_state, transition)
-#         running_state = RunningStatistics.insert_reward(running_state, n_env_state.reward)
-
-#         def do_train(j, carry):
-#             key, env_state, buffer_state, models, _ = carry
-#             (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt) = models
-
-#             buffer_state, batch = buffer.sample(buffer_state)
-#             key, train_key = jax.random.split(key)
-
-#             val = sac_train_step(actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt, batch, config, train_key)
-
-#             models = (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt)
-
-#             return (key, env_state, buffer_state, models, val)
-
-#         init_val = (jnp.zeros((), jnp.float32),)*7
-#         models = (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt)
-#         key, _, buffer_state, models, val = nnx.fori_loop(0, config.train_per_step, do_train, (key, n_env_state, buffer_state, models, init_val))
-#         (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt) = models
-#         return (key, n_env_state, buffer_state, running_state, (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt), val)
-#     init_val   = (jnp.zeros((), jnp.float32),) * 7
-#     init_carry = (
-#         key,
-#         env_state,
-#         buffer_state,
-#         running_state,
-#         (actor, actor_opt, critic, critic_opt,
-#          target_critic, log_alpha, alpha_opt),
-#         init_val,
-#     )
-
-#     (_, env_state, buffer_state, running_state, models, val) = nnx.fori_loop(
-#         0, num_steps, body_fun, init_carry
-#     )
-
-#     (actor, actor_opt, critic, critic_opt,
-#      target_critic, log_alpha, alpha_opt) = models
-
-#     return *val, env_state, running_state, buffer_state, num_steps
-
-""" Representation Modules """
+# Representation Modules
 
 
 def sac_train_step(
@@ -296,18 +188,8 @@ def sac_train_step(
     def state_action_metric_loss_fn(state_action_metric: EnsembleStateActionMetric):
 
         d_sa_xb, d_xb_sa = state_action_metric(sa_rep, xb_rep)
-
         lambda_current = jnp.maximum(d_sa_xb, d_xb_sa)
-
         loss = jnp.mean((lambda_current - lambda_target) ** 2)
-
-        # jax.debug.print("d_min = {}", d_sa_xb.min())
-        # jax.debug.print("d_mean = {}", d_sa_xb.mean())
-        # jax.debug.print("d_max = {}", d_sa_xb.max())
-
-        # jax.debug.print("g_next_min = {}", g_sx_next.min())
-        # jax.debug.print("g_next_mean = {}", g_sx_next.mean())
-        # jax.debug.print("g_next_max = {}", g_sx_next.max())
 
         return loss
 
@@ -319,10 +201,6 @@ def sac_train_step(
     def min_state_action_to_state_metric_loss_fn(
         min_state_action_to_state_metric: MinStateActiontoStateMetric,
     ):
-
-        # d_sa_xb, d_xb_sa = state_action_metric(sa_rep, xb_rep)
-
-        # lambda_current = jnp.maximum(d_sa_xb, d_xb_sa)
 
         h_sax, h_xbs = (
             min_state_action_to_state_metric(sa_rep, x_rep),

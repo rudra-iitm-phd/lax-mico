@@ -189,7 +189,7 @@ def sac_train_step(
     def state_action_metric_loss_fn(state_action_metric: EnsembleStateActionMetric):
         d_sa_xb, d_xb_sa = state_action_metric(sa_rep, xb_rep)
         lambda_current = jnp.maximum(d_sa_xb, d_xb_sa)
-        loss = jnp.mean(optax.huber_loss(lambda_current, lambda_target, delta=2.0))
+        loss = jnp.mean(optax.huber_loss(lambda_current, lambda_target, delta=1.0))
         # loss = jnp.mean((lambda_current - lambda_target) ** 2)
         return loss
 
@@ -261,7 +261,7 @@ def sac_train_step(
         g_sx, g_xs = target_state_metric(s_rep, x_rep)
         u_target = jax.lax.stop_gradient(jnp.maximum(g_sx, g_xs))
         s_diff = jnp.linalg.norm(s_rep - x_rep, axis=-1, ord=1)
-        loss = jnp.mean(optax.huber_loss(s_diff, u_target, delta=2.0))
+        loss = jnp.mean(optax.huber_loss(s_diff, u_target, delta=1.0))
         return loss
 
     rep_loss, rep_grads = nnx.value_and_grad(rep_loss_fn)(rep_net)
@@ -363,7 +363,7 @@ def train_n_steps(
     min_state_action_to_state_metric_opt: nnx.Optimizer,
     target_state_metric: EnsembleStateMetric,
     target_state_action_to_state_metric: MinStateActiontoStateMetric,
-    actor: SACGaussianActor,
+    actor: SACGaussianActorRep,
     actor_opt: nnx.Optimizer,
     critic: EnsembleCritic,
     critic_opt: nnx.Optimizer,

@@ -29,9 +29,10 @@ class SACCritic(nnx.Module):
         self.model = nnx.Sequential(
             nnx.Linear(obs_dim + act_dim, hidden_size, rngs=rngs),
             nnx.LayerNorm(hidden_size, rngs=rngs),
-            nnx.tanh,
+            nnx.relu,
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
-            nnx.elu,
+            nnx.LayerNorm(hidden_size, rngs=rngs),
+            nnx.relu,
             nnx.Linear(
                 hidden_size, 1, kernel_init=zero_init, bias_init=zero_init, rngs=rngs
             ),
@@ -62,10 +63,10 @@ class SACGaussianActor(nnx.Module):
         self.act_dim = act_dim
         self.trunk = nnx.Sequential(
             nnx.Linear(obs_dim, hidden_size, rngs=rngs),
-            nnx.LayerNorm(hidden_size, rngs=rngs),
-            nnx.tanh,
+            # nnx.LayerNorm(hidden_size, rngs=rngs),
+            nnx.relu,
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
-            nnx.elu,
+            nnx.relu,
         )
         self.mean_head = nnx.Linear(hidden_size, act_dim, rngs=rngs)
         self.log_std_head = nnx.Linear(hidden_size, act_dim, rngs=rngs)
@@ -125,9 +126,10 @@ class RepNet(nnx.Module):
         self.trunk = nnx.Sequential(
             nnx.Linear(obs_dim, hidden_dim, rngs=rngs),
             nnx.LayerNorm(hidden_dim, rngs=rngs),
-            nnx.tanh,
+            nnx.relu,
             nnx.Linear(hidden_dim, hidden_dim, rngs=rngs),
-            nnx.elu,
+            nnx.LayerNorm(hidden_dim, rngs=rngs),
+            nnx.relu,
         )
 
         self.state_head = nnx.Linear(hidden_dim, rep_dim, rngs=rngs)
@@ -166,9 +168,10 @@ class SACCriticRep(nnx.Module):
         self.model = nnx.Sequential(
             nnx.Linear(rep_dim, hidden_size, rngs=rngs),
             nnx.LayerNorm(hidden_size, rngs=rngs),
-            nnx.tanh,
+            nnx.relu,
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
-            nnx.elu,
+            nnx.LayerNorm(hidden_size, rngs=rngs),
+            nnx.relu,
             nnx.Linear(
                 hidden_size, 1, kernel_init=zero_init, bias_init=zero_init, rngs=rngs
             ),
@@ -197,10 +200,10 @@ class SACGaussianActorRep(nnx.Module):
         self.act_dim = act_dim
         self.trunk = nnx.Sequential(
             nnx.Linear(rep_dim, hidden_size, rngs=rngs),
-            nnx.LayerNorm(hidden_size, rngs=rngs),
-            nnx.tanh,
+            # nnx.LayerNorm(hidden_size, rngs=rngs),
+            nnx.relu,
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
-            nnx.elu,
+            nnx.relu,
         )
         self.mean_head = nnx.Linear(hidden_size, act_dim, rngs=rngs)
         self.log_std_head = nnx.Linear(hidden_size, act_dim, rngs=rngs)

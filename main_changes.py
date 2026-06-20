@@ -1143,7 +1143,7 @@ def main(args, cfg_env=None):
             "episode_length": args.episode_length,
             "eval_episode_freq": args.eval_episode_freq,
             "batch_size": args.batch_size,
-            "transfer_interval": args.transfer_interval,
+            "transfer_freq": args.transfer_freq,
             "transfer_steps": args.transfer_steps,
             "env2_warmup": args.env2_warmup,
         }
