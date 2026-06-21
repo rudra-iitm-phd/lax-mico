@@ -7,12 +7,12 @@ from flax import nnx
 #### copied from gen_pe
 class StateAsymmetricMetric(nnx.Module):
     LOG_MIN: float = -20.0
-    LOG_MAX: float = jnp.e
+    LOG_MAX: float = 2.0
 
-    def __init__(self, rngs: nnx.Rngs, rep_dim: int, hidden_size: int):
+    def __init__(self, rngs: nnx.Rngs, state_rep_dim: int, hidden_size: int):
         zero_init = nnx.initializers.zeros
         self.model = nnx.Sequential(
-            nnx.Linear(rep_dim + rep_dim, hidden_size, rngs=rngs),
+            nnx.Linear(state_rep_dim * 2, hidden_size, rngs=rngs),
             nnx.LayerNorm(hidden_size, rngs=rngs),
             nnx.relu,
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
@@ -28,12 +28,12 @@ class StateAsymmetricMetric(nnx.Module):
             self.model(jnp.concatenate([state1_rep, state2_rep], axis=-1)), axis=-1
         )
         log_metric = jnp.clip(log_metric, self.LOG_MIN, self.LOG_MAX)
-        return jnp.exp(log_metric)
+        return jax.nn.softplus(log_metric)
 
 
 class EnsembleStateMetric(nnx.Module):
-    def __init__(self, rngs: nnx.Rngs, rep_dim: int, hidden_size: int = 256):
-        self.g = StateAsymmetricMetric(rngs, rep_dim, hidden_size)
+    def __init__(self, rngs: nnx.Rngs, state_rep_dim: int, hidden_size: int = 256):
+        self.g = StateAsymmetricMetric(rngs, state_rep_dim, hidden_size)
 
     def __call__(self, state1_rep: jnp.ndarray, state2_rep: jnp.ndarray) -> jnp.ndarray:
         return self.g(state1_rep, state2_rep), self.g(state2_rep, state1_rep)
@@ -41,12 +41,14 @@ class EnsembleStateMetric(nnx.Module):
 
 class StateActionDiffuseMetric(nnx.Module):
     LOG_MIN: float = -20.0
-    LOG_MAX: float = jnp.e
+    LOG_MAX: float = 2.0
 
-    def __init__(self, rngs: nnx.Rngs, rep_dim: int, hidden_size: int):
+    def __init__(
+        self, rngs: nnx.Rngs, state_rep_dim: int, act_rep_dim: int, hidden_size: int
+    ):
         zero_init = nnx.initializers.zeros
         self.model = nnx.Sequential(
-            nnx.Linear(rep_dim + rep_dim, hidden_size, rngs=rngs),
+            nnx.Linear((state_rep_dim + act_rep_dim) * 2, hidden_size, rngs=rngs),
             nnx.LayerNorm(hidden_size, rngs=rngs),
             nnx.relu,
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
@@ -70,12 +72,14 @@ class StateActionDiffuseMetric(nnx.Module):
 
         log_metric = jnp.clip(log_metric, self.LOG_MIN, self.LOG_MAX)
 
-        return jnp.exp(log_metric)
+        return jax.nn.softplus(log_metric)
 
 
 class EnsembleStateActionMetric(nnx.Module):
-    def __init__(self, rngs: nnx.Rngs, rep_dim: int, hidden_size: int):
-        self.d = StateActionDiffuseMetric(rngs, rep_dim, hidden_size)
+    def __init__(
+        self, rngs: nnx.Rngs, state_rep_dim: int, act_rep_dim: int, hidden_size: int
+    ):
+        self.d = StateActionDiffuseMetric(rngs, state_rep_dim, act_rep_dim, hidden_size)
 
     def __call__(
         self, state_action_1_rep: jnp.ndarray, state_action_2_rep: jnp.ndarray
@@ -87,18 +91,18 @@ class EnsembleStateActionMetric(nnx.Module):
 
 class MinStateActiontoStateMetric(nnx.Module):
     LOG_MIN: float = -20.0
-    LOG_MAX: float = jnp.e
+    LOG_MAX: float = 2.0
 
     def __init__(
         self,
         rngs: nnx.Rngs,
-        state_action_rep_dim: int,
         state_rep_dim: int,
+        act_rep_dim: int,
         hidden_size: int,
     ):
         zero_init = nnx.initializers.zeros
         self.model = nnx.Sequential(
-            nnx.Linear(state_action_rep_dim + state_rep_dim, hidden_size, rngs=rngs),
+            nnx.Linear(state_rep_dim * 2 + act_rep_dim, hidden_size, rngs=rngs),
             nnx.LayerNorm(hidden_size, rngs=rngs),
             nnx.relu,
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
@@ -116,7 +120,7 @@ class MinStateActiontoStateMetric(nnx.Module):
             self.model(jnp.concatenate([state_action_rep, state_rep], axis=-1)), axis=-1
         )
         log_metric = jnp.clip(log_metric, self.LOG_MIN, self.LOG_MAX)
-        return jnp.exp(log_metric)
+        return jax.nn.softplus(log_metric)
 
 
 class RepNetUnified(nnx.Module):

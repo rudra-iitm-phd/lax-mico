@@ -30,10 +30,10 @@ from utils.acting import actor_step_rep, wrap_env_for_training
 from utils.buffer import RunningStatistics, UniformSamplingQueue
 from utils.logger import EpochLogger
 from utils.models import (
-    EnsembleCritic,
-    EnsembleCriticRep,
-    RepNet,
-    SACGaussianActorRep,
+    # EnsembleCritic,
+    # EnsembleCriticRep,
+    # RepNet,
+    # SACGaussianActorRep,
     Scalar,
     get_tree_norm,
 )
@@ -42,6 +42,7 @@ from utils.rep_models import (
     EnsembleStateMetric,
     MinStateActiontoStateMetric,
 )
+from utils.rep_networks import EnsembleCriticRep, RepNet, SACGaussianActorRep
 from utils.types import Transition
 from utils.utils import make_static_config_from_dict, sac_args
 from utils.visualization import compute_alignment_scalars, tsne_rep_plot
@@ -178,9 +179,8 @@ def sac_train_step(
     s_next_rep, x_next_rep = target_rep.state_rep(s_next), target_rep.state_rep(x_next)
     sa_rep, xb_rep = rep_net.state_action_rep(s, a), rep_net.state_action_rep(x, b)
 
-    g_sx_next, g_xs_next = target_state_metric(
-        s_next_rep, x_next_rep
-    )  # sa representations are acquired from target networks
+    g_sx_next, g_xs_next = target_state_metric(s_next_rep, x_next_rep)
+    # sa representations are acquired from target networks
     u_target = jnp.maximum(g_sx_next, g_xs_next)
     lambda_target = jax.lax.stop_gradient(
         jnp.abs(r - y) + config.gamma * discount * u_target
@@ -418,9 +418,9 @@ def train_n_steps(
     target_state_action_to_state_metric: MinStateActiontoStateMetric,
     actor: SACGaussianActorRep,
     actor_opt: nnx.Optimizer,
-    critic: EnsembleCritic,
+    critic: EnsembleCriticRep,
     critic_opt: nnx.Optimizer,
-    target_critic: EnsembleCritic,
+    target_critic: EnsembleCriticRep,
     log_alpha: Scalar,
     alpha_opt: nnx.Optimizer,
     config,
@@ -764,7 +764,7 @@ def main(args, cfg_env=None):
     env_state = env.reset(env_key)
     obs_dim = env.observation_size
     act_dim = env.action_size
-    rep_dim = 66
+    state_rep_dim, act_rep_dim = int(0.8 * obs_dim), int(0.8 * act_dim)
 
     # Standard SAC target entropy: −|A|
     # Targets roughly uniform distribution over actions at start.
@@ -809,7 +809,8 @@ def main(args, cfg_env=None):
         rngs=rngs,
         obs_dim=obs_dim,
         act_dim=act_dim,
-        rep_dim=rep_dim,
+        state_rep_dim=state_rep_dim,
+        act_rep_dim=act_rep_dim,
         hidden_dim=config["hidden_size"],
     )
 
@@ -817,7 +818,7 @@ def main(args, cfg_env=None):
         model=rep_net,
         tx=optax.chain(
             optax.clip_by_global_norm(config["max_grad_norm"]),
-            optax.adam(learning_rate=config["lr"]),
+            optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
         ),
         wrt=nnx.Param,
     )
@@ -825,35 +826,38 @@ def main(args, cfg_env=None):
     target_rep = deepcopy(rep_net)
 
     state_metric = EnsembleStateMetric(
-        rngs=rngs, rep_dim=rep_dim, hidden_size=config["hidden_size"]
+        rngs=rngs, state_rep_dim=state_rep_dim, hidden_size=config["hidden_size"]
     )
 
     state_metric_opt = nnx.Optimizer(
         model=state_metric,
         tx=optax.chain(
             optax.clip_by_global_norm(config["max_grad_norm"]),
-            optax.adam(learning_rate=config["lr"]),
+            optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
         ),
         wrt=nnx.Param,
     )
 
     state_action_metric = EnsembleStateActionMetric(
-        rngs=rngs, rep_dim=rep_dim, hidden_size=config["hidden_size"]
+        rngs=rngs,
+        state_rep_dim=state_rep_dim,
+        act_rep_dim=act_rep_dim,
+        hidden_size=config["hidden_size"],
     )
 
     state_action_metric_opt = nnx.Optimizer(
         model=state_action_metric,
         tx=optax.chain(
             optax.clip_by_global_norm(config["max_grad_norm"]),
-            optax.adam(learning_rate=config["lr"]),
+            optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
         ),
         wrt=nnx.Param,
     )
 
     min_state_action_to_state_metric = MinStateActiontoStateMetric(
         rngs=rngs,
-        state_action_rep_dim=rep_dim,
-        state_rep_dim=rep_dim,
+        state_rep_dim=state_rep_dim,
+        act_rep_dim=act_rep_dim,
         hidden_size=config["hidden_size"],
     )
 
@@ -861,7 +865,7 @@ def main(args, cfg_env=None):
         model=min_state_action_to_state_metric,
         tx=optax.chain(
             optax.clip_by_global_norm(config["max_grad_norm"]),
-            optax.adam(learning_rate=config["lr"]),
+            optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
         ),
         wrt=nnx.Param,
     )
@@ -871,27 +875,33 @@ def main(args, cfg_env=None):
     target_state_action_to_state_metric = deepcopy(min_state_action_to_state_metric)
 
     actor = SACGaussianActorRep(
-        rngs=rngs, rep_dim=rep_dim, act_dim=act_dim, hidden_size=config["hidden_size"]
+        rngs=rngs,
+        state_rep_dim=state_rep_dim,
+        act_dim=act_dim,
+        hidden_size=config["hidden_size"],
     )
 
     actor_opt = nnx.Optimizer(
         model=actor,
         tx=optax.chain(
             optax.clip_by_global_norm(config["max_grad_norm"]),
-            optax.adam(learning_rate=config["lr"]),
+            optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
         ),
         wrt=nnx.Param,
     )
 
     critic = EnsembleCriticRep(
-        rngs=rngs, rep_dim=rep_dim, hidden_size=config["hidden_size"]
+        rngs=rngs,
+        state_rep_dim=state_rep_dim,
+        act_rep_dim=act_rep_dim,
+        hidden_size=config["hidden_size"],
     )
 
     critic_opt = nnx.Optimizer(
         model=critic,
         tx=optax.chain(
             optax.clip_by_global_norm(config["max_grad_norm"]),
-            optax.adam(learning_rate=config["lr"]),
+            optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
         ),
         wrt=nnx.Param,
     )
