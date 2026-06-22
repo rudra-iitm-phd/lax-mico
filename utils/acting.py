@@ -17,11 +17,28 @@ def wrap_env_for_training(
     return env
 
 
+# def actor_step(
+#     env, env_state, policy, key: jnp.ndarray, extra_fields: Sequence[str] = ()
+# ) -> Tuple:
+#     obs = env_state.obs
+#     action, _ = policy(obs, key)
+#     n_state = env.step(env_state, action)
+#     state_extras = {x: n_state.info[x] for x in extra_fields}
+#     return n_state, Transition(
+#         observation=obs,
+#         action=action,
+#         reward=n_state.reward,
+#         discount=1 - n_state.done,
+#         next_observation=n_state.obs,
+#         extras={"state_extras": state_extras},
+#     )
+
+
 def actor_step(
-    env, env_state, policy, key: jnp.ndarray, extra_fields: Sequence[str] = ()
+    env, env_state, policy, critic, key: jnp.ndarray, extra_fields: Sequence[str] = ()
 ) -> Tuple:
     obs = env_state.obs
-    action, _ = policy(obs, key)
+    action, _ = policy(critic.encoder_state(obs), key)
     n_state = env.step(env_state, action)
     state_extras = {x: n_state.info[x] for x in extra_fields}
     return n_state, Transition(

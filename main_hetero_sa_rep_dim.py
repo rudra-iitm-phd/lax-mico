@@ -50,7 +50,7 @@ from utils.visualization import compute_alignment_scalars, tsne_rep_plot
 default_cfg = {
     "log_freq": int(1e4),
     "save_freq": int(5e4),
-    "eval_episode_freq": 5,
+    "eval_episode_freq": 10,
     "hidden_size": 256,
     "lr": 3e-4,
     "max_grad_norm": 10,
@@ -318,8 +318,7 @@ def sac_train_step(
     rep_loss, rep_grads = nnx.value_and_grad(rep_loss_fn)(rep_net)
 
     rep_grads_total = jax.tree_util.tree_map(
-        lambda a, b, c: a + b + c,
-        rep_grads_from_actor,
+        lambda b, c: b + 0.5 * c,
         rep_grads_from_critic,
         rep_grads,
     )
@@ -764,7 +763,7 @@ def main(args, cfg_env=None):
     env_state = env.reset(env_key)
     obs_dim = env.observation_size
     act_dim = env.action_size
-    state_rep_dim, act_rep_dim = int(0.8 * obs_dim), int(0.8 * act_dim)
+    state_rep_dim, act_rep_dim = int(0.9 * obs_dim), int(0.9 * act_dim)
 
     # Standard SAC target entropy: −|A|
     # Targets roughly uniform distribution over actions at start.

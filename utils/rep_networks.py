@@ -48,7 +48,8 @@ class RepNet(nnx.Module):
         h = self.trunk(obs)
         z = self.state_head(h)
 
-        return z / (jnp.linalg.norm(z, axis=-1, keepdims=True) + 1e-8)
+        # return z / (jnp.linalg.norm(z, axis=-1, keepdims=True) + 1e-8)
+        return z
 
     def state_action_rep(self, obs: jnp.ndarray, act: jnp.ndarray) -> jnp.ndarray:
 
@@ -58,7 +59,8 @@ class RepNet(nnx.Module):
 
         z = self.state_action_head(jnp.concatenate([h, act], axis=-1))
 
-        return z / (jnp.linalg.norm(z, axis=-1, keepdims=True) + 1e-8)
+        # return z / (jnp.linalg.norm(z, axis=-1, keepdims=True) + 1e-8)
+        return z
 
 
 class SACCriticRep(nnx.Module):

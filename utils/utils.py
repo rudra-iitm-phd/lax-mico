@@ -63,14 +63,14 @@ def sac_args():
     p.add_argument("--save-freq", type=int, default=int(5e4))
     p.add_argument("--train-per-step", type=int, default=8)
     # SAC hyperparameters
-    p.add_argument("--lr", type=float, default=1e-5)
+    p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--gamma", type=float, default=0.99)
     p.add_argument("--update-tau", type=float, default=0.005)
     p.add_argument("--init-temperature", type=float, default=0.1)
     p.add_argument("--max-grad-norm", type=float, default=5.0)
     p.add_argument("--hidden-size", type=int, default=256)
     # eval
-    p.add_argument("--eval-episode-freq", type=int, default=5)
+    p.add_argument("--eval-episode-freq", type=int, default=10)
     # transfer
     p.add_argument("--target_task", type=str, default="CheetahRun")
     p.add_argument("--transfer_freq", type=int, default=int(1e3))

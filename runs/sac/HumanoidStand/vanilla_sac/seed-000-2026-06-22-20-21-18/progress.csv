@@ -1,0 +1,4 @@
+Train/Steps,Loss/Loss_critic,Loss/Loss_actor,Loss/Loss_alpha,SAC/Alpha,SAC/LogPi_mean,SAC/Q1_mean,SAC/Q2_mean,Norm/actor_model,Norm/critic_model,Eval/Return
+641000,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+642000,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+643000,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan

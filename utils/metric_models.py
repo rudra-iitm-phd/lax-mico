@@ -7,7 +7,7 @@ from flax import nnx
 #### copied from gen_pe
 class StateAsymmetricMetric(nnx.Module):
     LOG_MIN: float = -20.0
-    LOG_MAX: float = jnp.e
+    LOG_MAX: float = 2.0
 
     def __init__(self, rngs: nnx.Rngs, obs_dim: int, hidden_size: int):
         zero_init = nnx.initializers.zeros
@@ -40,7 +40,7 @@ class EnsembleStateMetric(nnx.Module):
 
 class StateActionDiffuseMetric(nnx.Module):
     LOG_MIN: float = -20.0
-    LOG_MAX: float = jnp.e
+    LOG_MAX: float = 2.0
 
     def __init__(self, rngs: nnx.Rngs, obs_dim: int, act_dim: int, hidden_size: int):
         zero_init = nnx.initializers.zeros
@@ -77,7 +77,7 @@ class EnsembleStateActionMetric(nnx.Module):
 
 class MinStateActiontoStateMetric(nnx.Module):
     LOG_MIN: float = -20.0
-    LOG_MAX: float = jnp.e
+    LOG_MAX: float = 2.0
 
     def __init__(
         self,
