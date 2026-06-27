@@ -26,6 +26,7 @@ class SACCritic(nnx.Module):
         self, rngs: nnx.Rngs, obs_dim: int, act_dim: int, hidden_size: int = 256
     ):
         zero_init = nnx.initializers.zeros
+
         self.model = nnx.Sequential(
             nnx.Linear(obs_dim + act_dim, hidden_size, rngs=rngs),
             nnx.LayerNorm(hidden_size, rngs=rngs),
@@ -63,7 +64,7 @@ class SACGaussianActor(nnx.Module):
         self.act_dim = act_dim
         self.trunk = nnx.Sequential(
             nnx.Linear(obs_dim, hidden_size, rngs=rngs),
-            # nnx.LayerNorm(hidden_size, rngs=rngs),
+            nnx.LayerNorm(hidden_size, rngs=rngs),
             nnx.relu,
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
             nnx.relu,
@@ -83,8 +84,13 @@ class SACGaussianActor(nnx.Module):
         self, x_t: jnp.ndarray, mean: jnp.ndarray, log_std: jnp.ndarray
     ) -> jnp.ndarray:
         std = jnp.exp(log_std)
+        # log_prob = -0.5 * (
+        #     ((x_t - mean) / (std + EPS)) ** 2 + 2.0 * log_std + jnp.log(2.0 * jnp.pi)
+        # )
         log_prob = -0.5 * (
-            ((x_t - mean) / (std + EPS)) ** 2 + 2.0 * log_std + jnp.log(2.0 * jnp.pi)
+            ((x_t - mean) / std) ** 2
+            + 2.0 * log_std
+            + jnp.log(2.0 * jnp.pi)  # CHANGED: removed +EPS
         )
         log_prob = log_prob.sum(axis=-1)
 

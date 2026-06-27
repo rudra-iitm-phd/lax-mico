@@ -32,7 +32,7 @@ class Critic(nnx.Module):
         zero_init = nnx.initializers.zeros
         self.state_encoder = nnx.Sequential(
             nnx.Linear(state_dim, hidden_size, rngs=rngs),
-            nnx.relu,
+            # nnx.relu,
             # nnx.Linear(hidden_size, hidden_size, rngs=rngs),
         )
 
@@ -78,7 +78,7 @@ class Critic(nnx.Module):
     #     return phi_sa
 
     def __call__(self, obs: jnp.ndarray, act: jnp.ndarray) -> jnp.ndarray:
-        phi_s = self.encoder_state(obs)
+        phi_s = nnx.relu(self.encoder_state(obs))
         phi_sa = jnp.concatenate([phi_s, act], axis=-1)
         q1 = jnp.squeeze(self.Q_function1(phi_sa), axis=-1)
         q2 = jnp.squeeze(self.Q_function2(phi_sa), axis=-1)
@@ -127,7 +127,7 @@ class Actor(nnx.Module):
         #     nnx.relu,
         # )
         self.trunk = nnx.Sequential(
-            nnx.Linear(hidden_size, hidden_size, rngs=rngs),
+            # nnx.Linear(hidden_size, hidden_size, rngs=rngs),
             nnx.relu,
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
             nnx.relu,

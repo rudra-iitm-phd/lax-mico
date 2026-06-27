@@ -27,27 +27,11 @@ from mujoco_playground import registry, wrapper
 from tensorboardX import SummaryWriter
 
 from utils.acting import actor_step, actor_step_rep, wrap_env_for_training
-from utils.buffer import RunningStatistics, UniformSamplingQueue
+from utils.buffer import RunningMeanStd, RunningStatistics, UniformSamplingQueue
 from utils.logger import EpochLogger
-
-# from utils.rep_models import (
-#     EnsembleStateActionMetric,
-#     EnsembleStateMetric,
-#     MinStateActiontoStateMetric,
-#     StateActionDiffuseMetric,
-#     StateAsymmetricMetric,
-# )
-from utils.metric_models import (
-    EnsembleStateActionMetric,
-    EnsembleStateMetric,
-    MinStateActiontoStateMetric,
-)
 from utils.models import (
     EnsembleCritic,
-    EnsembleCriticRep,
-    RepNet,
     SACGaussianActor,
-    SACGaussianActorRep,
     Scalar,
     get_tree_norm,
 )
@@ -119,6 +103,9 @@ def sac_train_step(
     (critic_loss, (q1_mean, q2_mean)), critic_grads = nnx.value_and_grad(
         critic_loss_fn, has_aux=True
     )(critic)
+    # critic_grads = jax.tree_util.tree_map(
+    #     lambda g: jnp.clip(g, -1.0, 1.0), critic_grads
+    # )
     critic_opt.update(critic, critic_grads)
 
     key, act_key = jax.random.split(key)
@@ -132,6 +119,7 @@ def sac_train_step(
     (actor_loss, log_pi_mean), actor_grads = nnx.value_and_grad(
         actor_loss_fn, has_aux=True
     )(actor)
+    # actor_grads = jax.tree_util.tree_map(lambda g: jnp.clip(g, -1.0, 1.0), actor_grads)
     actor_opt.update(actor, actor_grads)
 
     def alpha_loss_fn(log_alpha):
@@ -156,36 +144,44 @@ def train_n_steps(
     buffer_state,
     buffer,
     running_state,
-    actor: SACGaussianActor,
-    actor_opt: nnx.Optimizer,
-    critic: EnsembleCritic,
-    critic_opt: nnx.Optimizer,
-    target_critic: EnsembleCritic,
-    log_alpha: Scalar,
-    alpha_opt: nnx.Optimizer,
+    obs_normalizer,  # NEW
+    actor,
+    actor_opt,
+    critic,
+    critic_opt,
+    target_critic,
+    log_alpha,
+    alpha_opt,
     config,
-    key: jnp.ndarray,
+    key,
 ):
-
     num_steps = config.log_freq
 
     def body_fun(i, carry):
-        key, env_state, buffer_state, running_state, models, val = carry
+        key, env_state, buffer_state, running_state, obs_normalizer, models, val = (
+            carry  # NEW
+        )
         (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt) = (
             models
         )
 
         key, env_key = jax.random.split(key)
         n_env_state, transition = actor_step(
-            env, env_state, actor, env_key, extra_fields=("truncation",)
+            env,
+            env_state,
+            actor,
+            obs_normalizer,
+            env_key,
+            extra_fields=("truncation",),  # NEW arg
         )
         buffer_state = buffer.insert(buffer_state, transition)
+        obs_normalizer = obs_normalizer.update(transition.observation)  # NEW
         running_state = RunningStatistics.insert_reward(
             running_state, n_env_state.reward
         )
 
         def do_train(j, carry):
-            key, env_state, buffer_state, models, _ = carry
+            key, env_state, buffer_state, obs_normalizer, models, _ = carry  # NEW
             (
                 actor,
                 actor_opt,
@@ -197,6 +193,10 @@ def train_n_steps(
             ) = models
 
             buffer_state, batch = buffer.sample(buffer_state)
+            batch = batch._replace(  # NEW — normalize at point of use, not storage
+                observation=obs_normalizer.normalize(batch.observation),
+                next_observation=obs_normalizer.normalize(batch.next_observation),
+            )
             key, train_key = jax.random.split(key)
 
             val = sac_train_step(
@@ -211,7 +211,6 @@ def train_n_steps(
                 config,
                 train_key,
             )
-
             models = (
                 actor,
                 actor_opt,
@@ -221,8 +220,7 @@ def train_n_steps(
                 log_alpha,
                 alpha_opt,
             )
-
-            return (key, env_state, buffer_state, models, val)
+            return (key, env_state, buffer_state, obs_normalizer, models, val)  # NEW
 
         init_val = (jnp.zeros((), jnp.float32),) * 7
         models = (
@@ -234,11 +232,11 @@ def train_n_steps(
             log_alpha,
             alpha_opt,
         )
-        key, _, buffer_state, models, val = nnx.fori_loop(
+        key, _, buffer_state, obs_normalizer, models, val = nnx.fori_loop(  # NEW
             0,
             config.train_per_step,
             do_train,
-            (key, n_env_state, buffer_state, models, init_val),
+            (key, n_env_state, buffer_state, obs_normalizer, models, init_val),
         )
         (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt) = (
             models
@@ -248,6 +246,7 @@ def train_n_steps(
             n_env_state,
             buffer_state,
             running_state,
+            obs_normalizer,  # NEW
             (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt),
             val,
         )
@@ -258,51 +257,179 @@ def train_n_steps(
         env_state,
         buffer_state,
         running_state,
+        obs_normalizer,  # NEW
         (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt),
         init_val,
     )
 
-    (_, env_state, buffer_state, running_state, models, val) = nnx.fori_loop(
-        0, num_steps, body_fun, init_carry
+    (_, env_state, buffer_state, running_state, obs_normalizer, models, val) = (
+        nnx.fori_loop(  # NEW
+            0, num_steps, body_fun, init_carry
+        )
     )
-
     (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt) = models
 
-    return *val, env_state, running_state, buffer_state, num_steps
+    return (
+        *val,
+        env_state,
+        running_state,
+        obs_normalizer,
+        buffer_state,
+        num_steps,
+    )  # NEW
+
+
+# @functools.partial(nnx.jit, static_argnames=("env", "buffer"))
+# def train_n_steps(
+#     env,
+#     env_state,
+#     buffer_state,
+#     buffer,
+#     running_state,
+#     actor: SACGaussianActor,
+#     actor_opt: nnx.Optimizer,
+#     critic: EnsembleCritic,
+#     critic_opt: nnx.Optimizer,
+#     target_critic: EnsembleCritic,
+#     log_alpha: Scalar,
+#     alpha_opt: nnx.Optimizer,
+#     config,
+#     key: jnp.ndarray,
+# ):
+
+#     num_steps = config.log_freq
+
+#     def body_fun(i, carry):
+#         key, env_state, buffer_state, running_state, models, val = carry
+#         (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt) = (
+#             models
+#         )
+
+#         key, env_key = jax.random.split(key)
+#         n_env_state, transition = actor_step(
+#             env, env_state, actor, env_key, extra_fields=("truncation",)
+#         )
+#         buffer_state = buffer.insert(buffer_state, transition)
+#         running_state = RunningStatistics.insert_reward(
+#             running_state, n_env_state.reward
+#         )
+
+#         def do_train(j, carry):
+#             key, env_state, buffer_state, models, _ = carry
+#             (
+#                 actor,
+#                 actor_opt,
+#                 critic,
+#                 critic_opt,
+#                 target_critic,
+#                 log_alpha,
+#                 alpha_opt,
+#             ) = models
+
+#             buffer_state, batch = buffer.sample(buffer_state)
+#             key, train_key = jax.random.split(key)
+
+#             val = sac_train_step(
+#                 actor,
+#                 actor_opt,
+#                 critic,
+#                 critic_opt,
+#                 target_critic,
+#                 log_alpha,
+#                 alpha_opt,
+#                 batch,
+#                 config,
+#                 train_key,
+#             )
+
+#             models = (
+#                 actor,
+#                 actor_opt,
+#                 critic,
+#                 critic_opt,
+#                 target_critic,
+#                 log_alpha,
+#                 alpha_opt,
+#             )
+
+#             return (key, env_state, buffer_state, models, val)
+
+#         init_val = (jnp.zeros((), jnp.float32),) * 7
+#         models = (
+#             actor,
+#             actor_opt,
+#             critic,
+#             critic_opt,
+#             target_critic,
+#             log_alpha,
+#             alpha_opt,
+#         )
+#         key, _, buffer_state, models, val = nnx.fori_loop(
+#             0,
+#             config.train_per_step,
+#             do_train,
+#             (key, n_env_state, buffer_state, models, init_val),
+#         )
+#         (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt) = (
+#             models
+#         )
+#         return (
+#             key,
+#             n_env_state,
+#             buffer_state,
+#             running_state,
+#             (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt),
+#             val,
+#         )
+
+#     init_val = (jnp.zeros((), jnp.float32),) * 7
+#     init_carry = (
+#         key,
+#         env_state,
+#         buffer_state,
+#         running_state,
+#         (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt),
+#         init_val,
+#     )
+
+#     (_, env_state, buffer_state, running_state, models, val) = nnx.fori_loop(
+#         0, num_steps, body_fun, init_carry
+#     )
+
+#     (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt) = models
+
+#     return *val, env_state, running_state, buffer_state, num_steps
 
 
 """ Copied from claude """
 
 
-def prefill_buffer(key, env, env_state, buffer_state, policy, buffer, num_itr: int):
-    """
-    Collect `num_itr` transitions before training begins.
-
-    Uses jax.lax.scan (not a Python loop) so the warmup is JIT-compiled.
-    The policy has random initial weights so actions are effectively random.
-    """
-
+def prefill_buffer(
+    key, env, env_state, buffer_state, policy, buffer, obs_normalizer, num_itr: int
+):
     def body(carry, _):
-        key, env_state, buffer_state = carry
+        key, env_state, buffer_state, obs_normalizer = carry
         key, subkey = jax.random.split(key)
         n_state, transition = actor_step(
             env=env,
             env_state=env_state,
             policy=policy,
+            obs_normalizer=obs_normalizer,  # NEW
             key=subkey,
             extra_fields=("truncation",),
         )
         buffer_state = buffer.insert(buffer_state, transition)
-        return (key, n_state, buffer_state), ()
+        obs_normalizer = obs_normalizer.update(transition.observation)  # NEW
+        return (key, n_state, buffer_state, obs_normalizer), ()
 
     jitted_body = jax.jit(body)
-    (_, env_state, buffer_state), () = jax.lax.scan(
+    (_, env_state, buffer_state, obs_normalizer), () = jax.lax.scan(
         jitted_body,
-        (key, env_state, buffer_state),
+        (key, env_state, buffer_state, obs_normalizer),
         (),
         length=num_itr,
     )
-    return env_state, buffer_state
+    return env_state, buffer_state, obs_normalizer
 
 
 # ===========================================================================
@@ -364,6 +491,7 @@ def main(args, cfg_env=None):
     env_state = env.reset(env_key)
     obs_dim = env.observation_size
     act_dim = env.action_size
+    obs_normalizer = RunningMeanStd.init((obs_dim,))
 
     # Standard SAC target entropy: −|A|
     # Targets roughly uniform distribution over actions at start.
@@ -384,6 +512,7 @@ def main(args, cfg_env=None):
         tx=optax.chain(
             optax.clip_by_global_norm(config["max_grad_norm"]),
             optax.adam(learning_rate=config["lr"]),
+            # optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
         ),
         wrt=nnx.Param,
     )
@@ -399,6 +528,7 @@ def main(args, cfg_env=None):
         tx=optax.chain(
             optax.clip_by_global_norm(config["max_grad_norm"]),
             optax.adam(learning_rate=config["lr"]),
+            # optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
         ),
         wrt=nnx.Param,
     )
@@ -446,13 +576,23 @@ def main(args, cfg_env=None):
     # ── warmup ────────────────────────────────────────────────────────────
     logger.log("Start prefilling replay buffer")
     prng_key, buffer_key = jax.random.split(prng_key)
-    env_state, buffer_state = prefill_buffer(
+    # env_state, buffer_state = prefill_buffer(
+    #     key=buffer_key,
+    #     env=env,
+    #     env_state=env_state,
+    #     buffer_state=buffer_state,
+    #     policy=actor,
+    #     buffer=buffer,
+    #     num_itr=config["warmup_samples"],
+    # )
+    env_state, buffer_state, obs_normalizer = prefill_buffer(  # CHANGED unpack
         key=buffer_key,
         env=env,
         env_state=env_state,
         buffer_state=buffer_state,
         policy=actor,
         buffer=buffer,
+        obs_normalizer=obs_normalizer,  # NEW arg
         num_itr=config["warmup_samples"],
     )
 
@@ -460,16 +600,50 @@ def main(args, cfg_env=None):
     logger.log("Start SAC training")
     steps = buffer.size(buffer_state)
 
+    # while steps < config["total_env_steps"]:
+    #     prng_key, subkey = jax.random.split(prng_key)
+
+    #     # train_n_steps compiles on first call (~60 s), then runs at GPU speed
+    #     val = train_n_steps(
+    #         env=env,
+    #         env_state=env_state,
+    #         buffer_state=buffer_state,
+    #         buffer=buffer,
+    #         running_state=running_state,
+    #         actor=actor,
+    #         actor_opt=actor_opt,
+    #         critic=critic,
+    #         critic_opt=critic_opt,
+    #         target_critic=target_critic,
+    #         log_alpha=log_alpha,
+    #         alpha_opt=alpha_opt,
+    #         config=config_data,
+    #         key=subkey,
+    #     )
+
+    #     (
+    #         critic_loss,
+    #         actor_loss,
+    #         alpha_loss,
+    #         alpha,
+    #         log_pi_mean,
+    #         q1_mean,
+    #         q2_mean,
+    #         env_state,
+    #         running_state,
+    #         buffer_state,
+    #         num_steps,
+    #     ) = val
     while steps < config["total_env_steps"]:
         prng_key, subkey = jax.random.split(prng_key)
 
-        # train_n_steps compiles on first call (~60 s), then runs at GPU speed
         val = train_n_steps(
             env=env,
             env_state=env_state,
             buffer_state=buffer_state,
             buffer=buffer,
             running_state=running_state,
+            obs_normalizer=obs_normalizer,  # NEW arg
             actor=actor,
             actor_opt=actor_opt,
             critic=critic,
@@ -491,10 +665,10 @@ def main(args, cfg_env=None):
             q2_mean,
             env_state,
             running_state,
+            obs_normalizer,
             buffer_state,
-            num_steps,
+            num_steps,  # CHANGED unpack
         ) = val
-
         steps += num_steps
         logger.logged = False
 

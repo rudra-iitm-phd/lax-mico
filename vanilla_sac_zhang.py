@@ -125,16 +125,26 @@ def sac_train_step(
 
     key, act_key = jax.random.split(key)
 
-    def actor_loss_fn(actor):
+    def actor_loss_fn(actor_n_critic):
+        actor, critic = actor_n_critic
         pi, log_pi = actor(critic.encoder_state(obs), act_key)
         q1, q2 = critic(obs, pi)
         loss = jnp.mean(alpha * log_pi - jnp.minimum(q1, q2))
         return loss, jnp.mean(log_pi)
 
-    (actor_loss, log_pi_mean), actor_grads = nnx.value_and_grad(
+    (actor_loss, log_pi_mean), (actor_grads, encoder_grads) = nnx.value_and_grad(
         actor_loss_fn, has_aux=True
-    )(actor)
+    )((actor, critic))
+
+    # encoder_grads = jax.tree_util.tree_map(
+    #     lambda g: jnp.clip(g, -1.0, 1.0), encoder_grads
+    # )
+    # encoder_grads = optax.clip_by_global_norm(1.0)(encoder_grads)[0]
+    encoder_grads.Q_function1 = jax.tree.map(jnp.zeros_like, encoder_grads.Q_function1)
+    encoder_grads.Q_function2 = jax.tree.map(jnp.zeros_like, encoder_grads.Q_function2)
+
     actor_opt.update(actor, actor_grads)
+    critic_opt.update(critic, encoder_grads)
 
     def alpha_loss_fn(log_alpha):
         a = jnp.exp(log_alpha())

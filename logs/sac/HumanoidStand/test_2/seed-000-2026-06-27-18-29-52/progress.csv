@@ -1,0 +1,3 @@
+Train/Steps,Loss/Loss_critic,Loss/Loss_actor,Loss/Loss_alpha,Loss/Loss_state_action_metric,Loss/Loss_state_metric,Loss/Loss_state_action_to_state,Loss/Matching_loss,SAC/Alpha,SAC/LogPi_mean,SAC/Q1_mean,SAC/Q2_mean,Norm/actor_model,Norm/critic_model,Norm/state_action_metric_model,Norm/state_metric_model,Norm/state_action_state_metric_model,Eval/Return
+641000,0.43875277042388916,-10.43099594116211,-0.011858307756483555,0.01845628209412098,0.0343426875770092,0.05569860339164734,0.001045404700562358,0.002966931089758873,24.996826171875,9.77195930480957,9.740869522094727,34.989014,61.853935,29.910688,29.515474,29.792887,1.5612051
+642000,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan

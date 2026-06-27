@@ -13,14 +13,13 @@
 # limitations under the License.
 
 
-import abc 
+import abc
 from typing import Generic, Tuple, TypeVar
 
+import flax
 import jax
 import jax.numpy as jnp
-import flax
 from jax import flatten_util
-
 
 State = TypeVar("State")
 Sample = TypeVar("Sample")
@@ -28,15 +27,15 @@ Sample = TypeVar("Sample")
 
 @flax.struct.dataclass
 class ReplayBufferState:
-    data : jnp.ndarray
-    insert_position : jnp.ndarray
-    sample_position : jnp.ndarray
-    key : jnp.ndarray
+    data: jnp.ndarray
+    insert_position: jnp.ndarray
+    sample_position: jnp.ndarray
+    key: jnp.ndarray
+
 
 class QueueBase(abc.ABC, Generic[Sample]):
-
-    def __init__(self, max_replay_size:int, dummy_data_sample, sample_batch_size:int):
-        self._flatten_fn = jax.vmap(lambda x : flatten_util.ravel_pytree(x)[0])
+    def __init__(self, max_replay_size: int, dummy_data_sample, sample_batch_size: int):
+        self._flatten_fn = jax.vmap(lambda x: flatten_util.ravel_pytree(x)[0])
         dummy_flat, self._unflatten_fn = flatten_util.ravel_pytree(dummy_data_sample)
         self._unflatten_fn = jax.vmap(self._unflatten_fn)
         self._data_shape = (max_replay_size, len(dummy_flat))
@@ -46,10 +45,10 @@ class QueueBase(abc.ABC, Generic[Sample]):
 
     def init(self, key: jnp.ndarray) -> ReplayBufferState:
         return ReplayBufferState(
-        data=jnp.zeros(self._data_shape, self._data_type),
-        sample_position=jnp.zeros((), jnp.int32),
-        insert_position=jnp.zeros((), jnp.int32),
-        key=key,
+            data=jnp.zeros(self._data_shape, self._data_type),
+            sample_position=jnp.zeros((), jnp.int32),
+            insert_position=jnp.zeros((), jnp.int32),
+            key=key,
         )
 
     def check_can_insert(self, buffer_state, samples, shards=1):
@@ -60,12 +59,14 @@ class QueueBase(abc.ABC, Generic[Sample]):
                 f"Insert size {insert_size} exceeds max_replay_size {self._data_shape[0]}"
             )
         self._size = min(self._data_shape[0], self._size + insert_size)
- 
+
     def insert(self, buffer_state: ReplayBufferState, samples) -> ReplayBufferState:
         self.check_can_insert(buffer_state, samples, 1)
         return self._insert_internal(buffer_state, samples)
- 
-    def _insert_internal(self, buffer_state: ReplayBufferState, samples) -> ReplayBufferState:
+
+    def _insert_internal(
+        self, buffer_state: ReplayBufferState, samples
+    ) -> ReplayBufferState:
         update = self._flatten_fn(samples)
         data = buffer_state.data
         position = buffer_state.insert_position
@@ -79,26 +80,25 @@ class QueueBase(abc.ABC, Generic[Sample]):
         return buffer_state.replace(
             data=data, insert_position=position, sample_position=sample_position
         )
- 
+
     def sample(self, buffer_state: ReplayBufferState):
         return self._sample_internal(buffer_state)
- 
+
     @abc.abstractmethod
     def _sample_internal(self, buffer_state: ReplayBufferState): ...
- 
+
     def size(self, buffer_state: ReplayBufferState) -> int:
         return buffer_state.insert_position - buffer_state.sample_position
-
 
 
 class UniformSamplingQueue(QueueBase[Sample], Generic[Sample]):
     """
     Standard replay buffer: uniform random sampling without replacement.
- 
+
     SAC is purely off-policy and works well with uniform sampling.
     (gpe uses a priority queue; we don't need that complexity for SAC.)
     """
- 
+
     def _sample_internal(self, buffer_state: ReplayBufferState):
         key, sample_key = jax.random.split(buffer_state.key)
         idx = jax.random.randint(
@@ -114,8 +114,8 @@ class UniformSamplingQueue(QueueBase[Sample], Generic[Sample]):
 @flax.struct.dataclass
 class RunningStatisticsState:
     reward_state: ReplayBufferState
- 
- 
+
+
 class RunningStatistics:
     @staticmethod
     def init(reward_shape, key) -> RunningStatisticsState:
@@ -126,7 +126,7 @@ class RunningStatistics:
             key=key,
         )
         return RunningStatisticsState(reward_state=reward_state)
- 
+
     @staticmethod
     def insert_reward(
         running_state: RunningStatisticsState, reward: jnp.ndarray
@@ -139,5 +139,45 @@ class RunningStatistics:
         data = jax.lax.dynamic_update_slice_in_dim(data, reward, position, axis=0)
         position = (position + len(reward)) % (len(data) + 1)
         sample_position = jnp.maximum(0, rs.sample_position + roll)
-        rs = rs.replace(data=data, insert_position=position, sample_position=sample_position)
+        rs = rs.replace(
+            data=data, insert_position=position, sample_position=sample_position
+        )
         return running_state.replace(reward_state=rs)
+
+
+@flax.struct.dataclass
+class RunningMeanStd:
+    """Welford-style running mean/variance, used to normalize observations."""
+
+    mean: jnp.ndarray
+    var: jnp.ndarray
+    count: jnp.ndarray
+
+    @staticmethod
+    def init(shape) -> "RunningMeanStd":
+        return RunningMeanStd(
+            mean=jnp.zeros(shape, jnp.float32),
+            var=jnp.ones(shape, jnp.float32),
+            count=jnp.array(1e-4, jnp.float32),
+        )
+
+    def update(self, x: jnp.ndarray) -> "RunningMeanStd":
+        # x: (batch, dim) — raw, unnormalized observations
+        batch_mean = jnp.mean(x, axis=0)
+        batch_var = jnp.var(x, axis=0)
+        batch_count = x.shape[0]
+
+        delta = batch_mean - self.mean
+        tot_count = self.count + batch_count
+
+        new_mean = self.mean + delta * batch_count / tot_count
+        m_a = self.var * self.count
+        m_b = batch_var * batch_count
+        m2 = m_a + m_b + (delta**2) * self.count * batch_count / tot_count
+        new_var = m2 / tot_count
+
+        return self.replace(mean=new_mean, var=new_var, count=tot_count)
+
+    def normalize(self, x: jnp.ndarray, clip: float = 10.0) -> jnp.ndarray:
+        normed = (x - self.mean) / jnp.sqrt(self.var + 1e-8)
+        return jnp.clip(normed, -clip, clip)

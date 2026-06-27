@@ -48,7 +48,7 @@ def sac_args():
     p.add_argument("--num_envs", type=int, default=128)
     # logging
     p.add_argument("--experiment", type=str, default="sac")
-    p.add_argument("--log-dir", type=str, default="runs")
+    p.add_argument("--log-dir", type=str, default="logs")
     p.add_argument("--write-terminal", type=lambda x: bool(strtobool(x)), default=True)
     # compute
     p.add_argument("--device", type=str, default="gpu", help="'gpu' or 'cpu'")
@@ -67,7 +67,7 @@ def sac_args():
     p.add_argument("--gamma", type=float, default=0.99)
     p.add_argument("--update-tau", type=float, default=0.005)
     p.add_argument("--init-temperature", type=float, default=0.1)
-    p.add_argument("--max-grad-norm", type=float, default=5.0)
+    p.add_argument("--max-grad-norm", type=float, default=1.0)
     p.add_argument("--hidden-size", type=int, default=256)
     # eval
     p.add_argument("--eval-episode-freq", type=int, default=10)
