@@ -73,8 +73,8 @@ def sac_args():
     p.add_argument("--eval-episode-freq", type=int, default=10)
     # transfer
     p.add_argument("--target_task", type=str, default="CheetahRun")
-    p.add_argument("--transfer_freq", type=int, default=int(1e3))
-    p.add_argument("--transfer_steps", type=int, default=int(10))
+    p.add_argument("--transfer_freq", type=int, default=int(1e1))
+    p.add_argument("--transfer_steps", type=int, default=int(8))
     p.add_argument("--grad_steps", type=int, default=int(50))
     p.add_argument("--env2_warmup", type=int, default=int(2e3))
     p.add_argument(

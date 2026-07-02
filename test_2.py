@@ -38,7 +38,7 @@ from utils.logger import EpochLogger
 #     StateAsymmetricMetric,
 # )
 # use utils.metric_models to not get nan
-from utils.metric_models_prev import (
+from utils.metric_models import (
     EnsembleStateActionMetric,
     EnsembleStateMetric,
     MinStateActiontoStateMetric,
@@ -130,22 +130,11 @@ def sac_train_step(
     (critic_loss, (q1_mean, q2_mean)), critic_grads = nnx.value_and_grad(
         critic_loss_fn, has_aux=True
     )(critic)
-    critic_grads = jax.tree_util.tree_map(
-        lambda g: jnp.clip(g, -1.0, 1.0), critic_grads
-    )
-    critic_opt.update(critic, critic_grads)
+    # critic_grads = jax.tree_util.tree_map(
+    #     lambda g: jnp.clip(g, -1.0, 1.0), critic_grads
+    # )
+    # critic_opt.update(critic, critic_grads)
 
-    key, act_key = jax.random.split(key)
-
-    def actor_loss_fn(actor):
-        pi, log_pi = actor(obs, act_key)
-        q1, q2 = critic(jnp.concatenate([obs, pi], axis=-1))
-        loss = jnp.mean(alpha * log_pi - jnp.minimum(q1, q2))
-        return loss, jnp.mean(log_pi)
-
-    (actor_loss, log_pi_mean), actor_grads = nnx.value_and_grad(
-        actor_loss_fn, has_aux=True
-    )(actor)
     # actor_opt.update(actor, actor_grads)
 
     # B X (obs_dim , act_dim, 1, obs_dim) | I am assuming reward is of shape (B, ), so I am expanding it.
@@ -266,8 +255,9 @@ def sac_train_step(
         state_metric: EnsembleStateMetric,
     ):
         g_sx, g_xs = state_metric(s, x)
-        u = jnp.maximum(g_sx, g_xs)
-        return jnp.mean(u)
+        # u = jnp.maximum(g_sx, g_xs)
+        # return jnp.mean(u)
+        return jnp.maximum(g_sx, g_xs)
 
     def compute_state_action_diff(
         s: jnp.ndarray,
@@ -280,39 +270,50 @@ def sac_train_step(
         d_spi_xb, d_xb_spi = state_action_metric(
             jnp.concatenate([s, pi], axis=-1), jnp.concatenate([x, b], axis=-1)
         )
-        return jnp.mean(jnp.maximum(d_spi_xb, d_xb_spi))
+        # return jnp.mean(jnp.maximum(d_spi_xb, d_xb_spi))
+        return jnp.maximum(d_spi_xb, d_xb_spi)
 
-    def state_grad_steps(i, carry):
-        (x, state_metric, s_eq) = carry
+    def find_equivalent_states(i, carry):
+        (states, metric, states_eq) = carry
+
+        # given : source, find : source_eq
         opt = optax.adam(config.lr)
-        opt_state = opt.init(s_eq)
-        grad_s = jax.grad(lambda s: compute_state_diff(s, x, state_metric))(s_eq)
-        updates, opt_state = opt.update(grad_s, opt_state)
-        s_eq = optax.apply_updates(s_eq, updates)
-        return (x, state_metric, s_eq)
+        opt_state = opt.init(states_eq)
+
+        grad_ss = jax.grad(
+            lambda source_prime: jnp.sum(
+                compute_state_diff(states, source_prime, metric)
+            )
+        )(states_eq)
+        updates, opt_state = opt.update(grad_ss, opt_state)
+        states_eq = optax.apply_updates(states_eq, updates)
+        return (states, metric, states_eq)
 
     # given a state s find the equivalent state
     (s, state_metric, s_eq) = nnx.fori_loop(
         0,
         grad_steps,
-        state_grad_steps,
+        find_equivalent_states,
         (s, state_metric, jnp.zeros_like(s)),
     )
 
     def action_grad_steps(i, carry):
-        (s, pi, x, state_action_metric, b_eq) = carry
+        (states, actions, states_eq, metric, action_eq) = carry
+
         opt = optax.adam(config.lr)
-        opt_state = opt.init(b_eq)
-        grads_b = jax.grad(
-            lambda b: jnp.mean(
-                compute_state_action_diff(s, pi, x, b, state_action_metric)
+        opt_state = opt.init(action_eq)
+        grads = jax.grad(
+            lambda act_eq: jnp.sum(
+                compute_state_action_diff(states, actions, states_eq, act_eq, metric)
             )
-        )(b_eq)
-        updates, opt_state = opt.update(grads_b, opt_state)
-        b_eq = optax.apply_updates(b_eq, updates)
-        return (s, pi, x, state_action_metric, b_eq)
+        )(action_eq)
+        updates, opt_state = opt.update(grads, opt_state)
+        action_eq = optax.apply_updates(action_eq, updates)
+        action_eq = jnp.clip(action_eq, min=-1.0, max=1.0)
+        return (states, actions, states_eq, metric, action_eq)
 
     # key, act_key = jax.random.split(key)
+    key, act_key = jax.random.split(key)
 
     pi, _ = actor(s, act_key)
 
@@ -324,20 +325,48 @@ def sac_train_step(
         (s, pi, s_eq, state_action_metric, jnp.zeros_like(pi)),
     )
 
+    def critic_match_loss_fn(critic: EnsembleCritic):
+
+        q_eq_1, q_eq_2 = critic(jnp.concatenate([s_eq, pi_eq], axis=-1))
+        q1, q2 = critic(jnp.concatenate([s, pi], axis=-1))
+        target = jax.lax.stop_gradient(jnp.minimum(q1, q2))
+        loss = jnp.mean((q_eq_1 - target) ** 2) + jnp.mean((q_eq_2 - target) ** 2)
+        return loss
+
+    critic_match_loss, critic_match_grads = nnx.value_and_grad(critic_match_loss_fn)(
+        critic
+    )
+    critic_grads_total = jax.tree_util.tree_map(
+        lambda a, b: a + b, critic_grads, critic_match_grads
+    )
+    critic_opt.update(critic, critic_grads_total)
+
+    def actor_loss_fn(actor):
+        pi, log_pi = actor(obs, act_key)
+        q1, q2 = critic(jnp.concatenate([obs, pi], axis=-1))
+        loss = jnp.mean(alpha * log_pi - jnp.minimum(q1, q2))
+        return loss, jnp.mean(log_pi)
+
+    (actor_loss, log_pi_mean), actor_grads = nnx.value_and_grad(
+        actor_loss_fn, has_aux=True
+    )(actor)
+
     def act_match_loss_fn(actor: SACGaussianActorRep):
         actions, _ = actor(s_eq, act_key)
-        return jnp.mean(
-            optax.huber_loss(actions, jax.lax.stop_gradient(pi_eq), delta=1.0)
-        )
+        actions, target = jnp.exp(actions + 1), jnp.exp(pi_eq + 1)
+        # return jnp.mean(
+        #     optax.huber_loss(actions, jax.lax.stop_gradient(target), delta=1.0)
+        # )
+        return jnp.mean(((actions - target) ** 2).sum(axis=-1))
 
     matching_loss, actor_matching_loss = nnx.value_and_grad(act_match_loss_fn)(actor)
 
     actor_grads_total = jax.tree_util.tree_map(
         lambda a, b: a + b, actor_grads, actor_matching_loss
     )
-    actor_grads_total = jax.tree_util.tree_map(
-        lambda g: jnp.clip(g, -1.0, 1.0), actor_grads_total
-    )
+    # actor_grads_total = jax.tree_util.tree_map(
+    #     lambda g: jnp.clip(g, -1.0, 1.0), actor_grads_total
+    # )
     actor_opt.update(actor, actor_grads_total)
 
     def alpha_loss_fn(log_alpha):
