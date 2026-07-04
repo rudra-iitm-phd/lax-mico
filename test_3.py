@@ -93,6 +93,7 @@ def sac_train_step(
     min_state_action_to_state_metric: MinStateActiontoStateMetric,
     min_state_action_to_state_metric_opt: nnx.Optimizer,
     target_state_metric: EnsembleStateMetric,
+    target_state_action_metric: EnsembleStateActionMetric,
     target_state_action_to_state_metric: MinStateActiontoStateMetric,
     actor: SACGaussianActor,
     actor_opt: nnx.Optimizer,
@@ -111,7 +112,7 @@ def sac_train_step(
     discount = data.discount
     next_obs = data.next_observation
     alpha = jnp.exp(log_alpha())
-    beta = 0.1
+    beta = 1.0
     grad_steps = config.grad_steps
 
     key, next_key = jax.random.split(key)
@@ -192,19 +193,16 @@ def sac_train_step(
         min_state_action_to_state_metric: MinStateActiontoStateMetric,
     ):
 
-        d_sa_xb, d_xb_sa = state_action_metric(
-            jnp.concatenate([s, a], axis=-1), jnp.concatenate([x, b], axis=-1)
-        )
-
-        # lambda_current = jax.lax.stop_gradient(jnp.maximum(d_sa_xb, d_xb_sa))
+        d_sa_xb = jnp.abs(r - y) + discount * g_sx_next
+        d_xb_sa = jnp.abs(r - y) + discount * g_xs_next
 
         h_sax, h_xbs = (
             min_state_action_to_state_metric(jnp.concatenate([s, a], axis=-1), x),
             min_state_action_to_state_metric(jnp.concatenate([x, b], axis=-1), s),
         )
-        d_sa_xb, d_xb_sa = state_action_metric(
-            jnp.concatenate([s, a], axis=-1), jnp.concatenate([x, b], axis=-1)
-        )
+        # d_sa_xb, d_xb_sa = state_action_metric(
+        #     jnp.concatenate([s, a], axis=-1), jnp.concatenate([x, b], axis=-1)
+        # )
 
         score_p1, score_p2 = (
             (h_sax - jax.lax.stop_gradient(d_sa_xb)) / beta,
@@ -233,6 +231,10 @@ def sac_train_step(
 
     def state_metric_loss_fn(state_metric: EnsembleStateMetric):
 
+        # h_sax, h_xbs = (
+        #     target_state_action_to_state_metric(jnp.concatenate([s, a], axis=-1), x),
+        #     target_state_action_to_state_metric(jnp.concatenate([x, b], axis=-1), s),
+        # )
         h_sax, h_xbs = (
             target_state_action_to_state_metric(jnp.concatenate([s, a], axis=-1), x),
             target_state_action_to_state_metric(jnp.concatenate([x, b], axis=-1), s),
@@ -272,6 +274,22 @@ def sac_train_step(
     alpha_loss, alpha_grads = nnx.value_and_grad(alpha_loss_fn)(log_alpha)
     alpha_opt.update(log_alpha, alpha_grads)
 
+    g_ss1, g_ss2 = state_metric(s, s)
+    self_state_diff = jnp.mean(jnp.maximum(g_ss1, g_ss2))
+
+    g_sx, g_xs = state_metric(s, x)
+    cross_state_diff = jnp.mean(jnp.maximum(g_sx, g_xs))
+
+    d_sa1, d_sa2 = state_action_metric(
+        jnp.concatenate([s, a], axis=-1), jnp.concatenate([s, a], axis=-1)
+    )
+    self_state_action_diff = jnp.mean(jnp.maximum(d_sa1, d_sa2))
+
+    d_saxb, d_xbsa = state_action_metric(
+        jnp.concatenate([s, a], axis=-1), jnp.concatenate([x, b], axis=-1)
+    )
+    cross_state_action_diff = jnp.mean(jnp.maximum(d_saxb, d_xbsa))
+
     polyak_update(target_critic, critic, config.update_tau)
     polyak_update(target_state_metric, state_metric, config.update_tau)
     polyak_update(
@@ -279,6 +297,7 @@ def sac_train_step(
         min_state_action_to_state_metric,
         config.update_tau,
     )
+    polyak_update(target_state_action_metric, state_action_metric, config.update_tau)
 
     return (
         critic_loss,
@@ -291,6 +310,10 @@ def sac_train_step(
         lambda_loss,
         g_loss,
         h_loss,
+        self_state_diff,
+        cross_state_diff,
+        self_state_action_diff,
+        cross_state_action_diff,
     )
 
 
@@ -309,6 +332,7 @@ def train_n_steps(
     min_state_action_to_state_metric: MinStateActiontoStateMetric,
     min_state_action_to_state_metric_opt: nnx.Optimizer,
     target_state_metric: EnsembleStateMetric,
+    target_state_action_metric: EnsembleStateActionMetric,
     target_state_action_to_state_metric: MinStateActiontoStateMetric,
     actor: SACGaussianActor,
     actor_opt: nnx.Optimizer,
@@ -333,6 +357,7 @@ def train_n_steps(
             min_state_action_to_state_metric,
             min_state_action_to_state_metric_opt,
             target_state_metric,
+            target_state_action_metric,
             target_state_action_to_state_metric,
             actor,
             actor_opt,
@@ -363,6 +388,7 @@ def train_n_steps(
                 min_state_action_to_state_metric,
                 min_state_action_to_state_metric_opt,
                 target_state_metric,
+                target_state_action_metric,
                 target_state_action_to_state_metric,
                 actor,
                 actor_opt,
@@ -388,6 +414,7 @@ def train_n_steps(
                 min_state_action_to_state_metric,
                 min_state_action_to_state_metric_opt,
                 target_state_metric,
+                target_state_action_metric,
                 target_state_action_to_state_metric,
                 actor,
                 actor_opt,
@@ -409,6 +436,7 @@ def train_n_steps(
                 min_state_action_to_state_metric,
                 min_state_action_to_state_metric_opt,
                 target_state_metric,
+                target_state_action_metric,
                 target_state_action_to_state_metric,
                 actor,
                 actor_opt,
@@ -421,7 +449,7 @@ def train_n_steps(
 
             return (key, env_state, buffer_state, obs_normalizer, models, val)
 
-        init_val = (jnp.zeros((), jnp.float32),) * 10
+        init_val = (jnp.zeros((), jnp.float32),) * 14
         models = (
             state_metric,
             state_metric_opt,
@@ -430,6 +458,7 @@ def train_n_steps(
             min_state_action_to_state_metric,
             min_state_action_to_state_metric_opt,
             target_state_metric,
+            target_state_action_metric,
             target_state_action_to_state_metric,
             actor,
             actor_opt,
@@ -453,6 +482,7 @@ def train_n_steps(
             min_state_action_to_state_metric,
             min_state_action_to_state_metric_opt,
             target_state_metric,
+            target_state_action_metric,
             target_state_action_to_state_metric,
             actor,
             actor_opt,
@@ -476,6 +506,7 @@ def train_n_steps(
                 min_state_action_to_state_metric,
                 min_state_action_to_state_metric_opt,
                 target_state_metric,
+                target_state_action_metric,
                 target_state_action_to_state_metric,
                 actor,
                 actor_opt,
@@ -488,7 +519,7 @@ def train_n_steps(
             val,
         )
 
-    init_val = (jnp.zeros((), jnp.float32),) * 10
+    init_val = (jnp.zeros((), jnp.float32),) * 14
     init_carry = (
         key,
         env_state,
@@ -503,6 +534,7 @@ def train_n_steps(
             min_state_action_to_state_metric,
             min_state_action_to_state_metric_opt,
             target_state_metric,
+            target_state_action_metric,
             target_state_action_to_state_metric,
             actor,
             actor_opt,
@@ -527,6 +559,7 @@ def train_n_steps(
         min_state_action_to_state_metric,
         min_state_action_to_state_metric_opt,
         target_state_metric,
+        target_state_action_metric,
         target_state_action_to_state_metric,
         actor,
         actor_opt,
@@ -595,105 +628,67 @@ def transfer_tuning(
     u_target = jnp.maximum(g_sx_next, g_xs_next)
     lambda_target = jax.lax.stop_gradient(jnp.abs(r - y) + discount * u_target)
 
-    def compute_state_diff(
-        s: jnp.ndarray,
-        x: jnp.ndarray,
-        state_metric: EnsembleStateMetric,
-    ):
-        g_sx, g_xs = state_metric(s, x)
-        # u = jnp.maximum(g_sx, g_xs)
-        # return jnp.mean(u)
-        return jnp.maximum(g_sx, g_xs)
-
-    def compute_state_action_diff(
-        s: jnp.ndarray,
-        pi: jnp.ndarray,
-        x: jnp.ndarray,
-        b: jnp.ndarray,
-        state_action_metric: EnsembleStateActionMetric,
-    ):
-
-        d_spi_xb, d_xb_spi = state_action_metric(
-            jnp.concatenate([s, pi], axis=-1), jnp.concatenate([x, b], axis=-1)
-        )
-        # return jnp.mean(jnp.maximum(d_spi_xb, d_xb_spi))
-        return jnp.maximum(d_spi_xb, d_xb_spi)
-
-    def find_equivalent_states(i, carry):
-        (states, metric, states_eq) = carry
-
-        # given : source, find : source_eq
-        opt = optax.adam(config.lr)
-        opt_state = opt.init(states_eq)
-
-        grad_ss = jax.grad(
-            lambda source_prime: jnp.sum(
-                compute_state_diff(states, source_prime, metric)
-            )
-        )(states_eq)
-        updates, opt_state = opt.update(grad_ss, opt_state)
-        states_eq = optax.apply_updates(states_eq, updates)
-        return (states, metric, states_eq)
-
-    # given a state s find the equivalent state
-    (s, state_metric, s_eq) = nnx.fori_loop(
-        0,
-        grad_steps,
-        find_equivalent_states,
-        (s, state_metric, jnp.zeros_like(s)),
-    )
-
-    def action_grad_steps(i, carry):
-        (states, actions, states_eq, metric, action_eq) = carry
-
-        opt = optax.adam(config.lr)
-        opt_state = opt.init(action_eq)
-        grads = jax.grad(
-            lambda act_eq: jnp.sum(
-                compute_state_action_diff(states, actions, states_eq, act_eq, metric)
-            )
-        )(action_eq)
-        updates, opt_state = opt.update(grads, opt_state)
-        action_eq = optax.apply_updates(action_eq, updates)
-        action_eq = jnp.clip(action_eq, min=-1.0, max=1.0)
-        return (states, actions, states_eq, metric, action_eq)
-
     key, act_key = jax.random.split(key)
-    pi, _ = actor(s, act_key)
-
-    # given state and it's action pair, and the equivalent state, find the equivalent action
-    (s, pi, s_eq, state_action_metric, pi_eq) = nnx.fori_loop(
-        0,
-        grad_steps,
-        action_grad_steps,
-        (s, pi, s_eq, state_action_metric, jnp.zeros_like(pi)),
-    )
-
-    # def value_match_loss_fn(critic: EnsembleCritic):
-    #     q1_eq, q2_eq = critic(jnp.concatenate([s_eq, pi_eq], axis=-1))
-    #     q1, q2 = target_critic(jnp.concatenate([s, pi], axis=-1))
-    #     target = jax.lax.stop_gradient(jnp.minimum(q1, q2))
-    #     return jnp.mean((q1_eq - target) ** 2) + jnp.mean((q2_eq - target) ** 2)
-
-    # val_match_loss, val_match_grads = nnx.value_and_grad(value_match_loss_fn)(critic)
-    # critic_opt.update(critic, val_match_grads)
 
     def act_match_loss_fn(actor: SACGaussianActor):
-        actions, _ = actor(s_eq, act_key)
-        actions, target = jnp.exp(actions + 1), jnp.exp(pi_eq + 1)
-        # return jnp.mean(
-        #     optax.huber_loss(actions, jax.lax.stop_gradient(target), delta=1.0)
-        # )
-        return jnp.mean(((actions - jax.lax.stop_gradient(target)) ** 2).sum(axis=-1))
+        omega = 1e-2
+        state, state_prime = s, x
+        action, _ = actor(s, act_key)
+        # action_prime = b
+        action_prime, _ = actor(x, act_key)
 
-    matching_loss, actor_matching_loss = nnx.value_and_grad(act_match_loss_fn)(actor)
-    actor_opt.update(actor, actor_matching_loss)
+        g_sx, g_xs = state_metric(state, state_prime)
+        u = jnp.maximum(g_sx, g_xs)
+        u = u / omega
+        state_diff_weight = jnp.exp(jax.lax.stop_gradient(-u + u.min()))
 
-    state_matching_loss = jnp.mean(compute_state_diff(s, s_eq, state_metric))
+        d_spi_xb, d_xb_spi = state_action_metric(
+            jnp.concatenate([state, action], axis=-1),
+            jnp.concatenate([state_prime, action_prime], axis=-1),
+        )
+        d = jnp.maximum(d_spi_xb, d_xb_spi)
+        d = d / omega
+        state_action_diff_weight = jnp.exp(jax.lax.stop_gradient(-d + d.min()))
 
-    # polyak_update(target_critic, critic, config.update_tau)
+        loss = jnp.mean(
+            state_diff_weight
+            * state_action_diff_weight
+            * (action - jax.lax.stop_gradient(action_prime)) ** 2
+        )
 
-    return (matching_loss, state_matching_loss)
+        return loss
+
+    # def critic_match_loss_fn(critic:EnsembleCritic):
+    #     omega = 1e-2
+    #     state, state_prime = s, x
+    #     action, _ = actor(s)
+    #     action_prime = b
+
+    #     g_sx, g_xs = state_metric(state, state_prime)
+    #     u = jnp.maximum(g_sx, g_xs)
+    #     u = u / omega
+    #     state_diff_weight = jnp.exp(jax.lax.stop_gradient(-u + u.min()))
+
+    #     d_spi_xb, d_xb_spi = state_action_metric(
+    #         jnp.concatenate([state, action], axis=-1),
+    #         jnp.concatenate([state_prime, action_prime], axis=-1),
+    #     )
+    #     d = jnp.maximum(d_spi_xb, d_xb_spi)
+    #     d = d / omega
+    #     state_action_diff_weight = jnp.exp(jax.lax.stop_gradient(-d + d.min()))
+
+    #     loss = jnp.mean(
+    #         state_diff_weight
+    #         * state_action_diff_weight
+    #         * (action - jax.lax.stop_gradient(action_prime)) ** 2
+    #     )
+
+    #     return loss
+
+    act_rep_loss, act_rep_grads = nnx.value_and_grad(act_match_loss_fn)(actor)
+    actor_opt.update(actor, act_rep_grads)
+
+    return act_rep_loss, 0.0
 
 
 @functools.partial(nnx.jit, static_argnames=("env", "buffer"))
@@ -726,7 +721,8 @@ def tune_n_steps(
     num_steps = config.transfer_freq
 
     def body_fun(i, carry):
-        key, env_state, buffer_state, running_state, obs_normalizer, models, val = carry
+        # key, env_state, buffer_state, running_state, obs_normalizer, models, val = carry
+        key, buffer_state, running_state, obs_normalizer, models, val = carry
         (
             state_metric,
             state_metric_opt,
@@ -745,18 +741,19 @@ def tune_n_steps(
             alpha_opt,
         ) = models
 
-        key, env_key = jax.random.split(key)
-        n_env_state, transition = actor_step(
-            env, env_state, actor, obs_normalizer, env_key, extra_fields=("truncation",)
-        )
-        buffer_state = buffer.insert(buffer_state, transition)
-        obs_normalizer = obs_normalizer.update(transition.observation)
-        running_state = RunningStatistics.insert_reward(
-            running_state, n_env_state.reward
-        )
+        # key, env_key = jax.random.split(key)
+        # n_env_state, transition = actor_step(
+        #     env, env_state, actor, obs_normalizer, env_key, extra_fields=("truncation",)
+        # )
+        # buffer_state = buffer.insert(buffer_state, transition)
+        # obs_normalizer = obs_normalizer.update(transition.observation)
+        # running_state = RunningStatistics.insert_reward(
+        #     running_state, n_env_state.reward
+        # )
 
         def do_train(j, carry):
-            key, env_state, buffer_state, obs_normalizer, models, _ = carry
+            # key, env_state, buffer_state, obs_normalizer, models, _ = carry
+            key, buffer_state, obs_normalizer, models, _ = carry
             (
                 state_metric,
                 state_metric_opt,
@@ -821,7 +818,8 @@ def tune_n_steps(
                 alpha_opt,
             )
 
-            return (key, env_state, buffer_state, obs_normalizer, models, val)
+            # return (key, env_state, buffer_state, obs_normalizer, models, val)
+            return (key, buffer_state, obs_normalizer, models, val)
 
         init_val = (jnp.zeros((), jnp.float32),) * 2
         models = (
@@ -841,11 +839,17 @@ def tune_n_steps(
             log_alpha,
             alpha_opt,
         )
-        key, _, buffer_state, obs_normalizer, models, val = nnx.fori_loop(
+        # key, _, buffer_state, obs_normalizer, models, val = nnx.fori_loop(
+        #     0,
+        #     config.transfer_steps,
+        #     do_train,
+        #     (key, n_env_state, buffer_state, obs_normalizer, models, init_val),
+        # )
+        key, buffer_state, obs_normalizer, models, val = nnx.fori_loop(
             0,
             config.transfer_steps,
             do_train,
-            (key, n_env_state, buffer_state, obs_normalizer, models, init_val),
+            (key, buffer_state, obs_normalizer, models, init_val),
         )
         (
             state_metric,
@@ -866,7 +870,7 @@ def tune_n_steps(
         ) = models
         return (
             key,
-            n_env_state,
+            # n_env_state,
             buffer_state,
             running_state,
             obs_normalizer,
@@ -893,7 +897,7 @@ def tune_n_steps(
     init_val = (jnp.zeros((), jnp.float32),) * 2
     init_carry = (
         key,
-        env_state,
+        # env_state,
         buffer_state,
         running_state,
         obs_normalizer,
@@ -917,8 +921,11 @@ def tune_n_steps(
         init_val,
     )
 
-    (_, env_state, buffer_state, running_state, obs_normalizer, models, val) = (
-        nnx.fori_loop(0, num_steps, body_fun, init_carry)
+    # (_, env_state, buffer_state, running_state, obs_normalizer, models, val) = (
+    #     nnx.fori_loop(0, num_steps, body_fun, init_carry)
+    # )
+    (_, buffer_state, running_state, obs_normalizer, models, val) = nnx.fori_loop(
+        0, num_steps, body_fun, init_carry
     )
 
     (
@@ -1138,6 +1145,7 @@ def main(args, cfg_env=None):
     )
 
     target_state_metric = deepcopy(state_metric)
+    target_state_action_metric = deepcopy(state_action_metric)
 
     target_state_action_to_state_metric = deepcopy(min_state_action_to_state_metric)
 
@@ -1271,6 +1279,7 @@ def main(args, cfg_env=None):
             min_state_action_to_state_metric=min_state_action_to_state_metric,
             min_state_action_to_state_metric_opt=min_state_action_to_state_metric_opt,
             target_state_metric=target_state_metric,
+            target_state_action_metric=target_state_action_metric,
             target_state_action_to_state_metric=target_state_action_to_state_metric,
             actor=actor,
             actor_opt=actor_opt,
@@ -1294,6 +1303,10 @@ def main(args, cfg_env=None):
             lambda_loss,
             g_loss,
             h_loss,
+            self_state_diff,
+            cross_state_diff,
+            self_state_action_diff,
+            cross_state_action_diff,
             env_state,
             running_state,
             obs_normalizer,
@@ -1376,6 +1389,15 @@ def main(args, cfg_env=None):
         logger.log_tabular(
             "Norm/state_action_state_metric_model",
             get_tree_norm(nnx.state(min_state_action_to_state_metric, nnx.Param)),
+        )
+
+        logger.log_tabular("Metric/self_state_distance", self_state_diff.item())
+        logger.log_tabular("Metric/cross_state_distance", cross_state_diff.item())
+        logger.log_tabular(
+            "Metric/self_state_action_distance", self_state_action_diff.item()
+        )
+        logger.log_tabular(
+            "Metric/cross_state_action_distance", cross_state_action_diff.item()
         )
 
         logger.log_tabular(
