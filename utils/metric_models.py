@@ -14,10 +14,12 @@ class StateAsymmetricMetric(nnx.Module):
         self.model = nnx.Sequential(
             nnx.Linear(obs_dim * 2, hidden_size, rngs=rngs),
             nnx.LayerNorm(hidden_size, rngs=rngs),
-            nnx.relu,
+            # nnx.relu,
+            nnx.gelu,
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
             nnx.LayerNorm(hidden_size, rngs=rngs),
-            nnx.relu,
+            # nnx.relu,
+            nnx.gelu,
             nnx.Linear(
                 hidden_size, 1, kernel_init=zero_init, bias_init=zero_init, rngs=rngs
             ),
@@ -48,10 +50,12 @@ class StateActionDiffuseMetric(nnx.Module):
         self.model = nnx.Sequential(
             nnx.Linear((obs_dim + act_dim) * 2, hidden_size, rngs=rngs),
             nnx.LayerNorm(hidden_size, rngs=rngs),
-            nnx.relu,
+            # nnx.relu,
+            nnx.gelu,
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
             nnx.LayerNorm(hidden_size, rngs=rngs),
-            nnx.relu,
+            # nnx.relu,
+            nnx.gelu,
             nnx.Linear(
                 hidden_size, 1, kernel_init=zero_init, bias_init=zero_init, rngs=rngs
             ),
@@ -92,10 +96,12 @@ class MinStateActiontoStateMetric(nnx.Module):
         self.model = nnx.Sequential(
             nnx.Linear(obs_dim + act_dim + obs_dim, hidden_size, rngs=rngs),
             nnx.LayerNorm(hidden_size, rngs=rngs),
-            nnx.relu,
+            # nnx.relu,
+            nnx.gelu,
             nnx.Linear(hidden_size, hidden_size, rngs=rngs),
             nnx.LayerNorm(hidden_size, rngs=rngs),
-            nnx.relu,
+            # nnx.relu,
+            nnx.gelu,
             nnx.Linear(
                 hidden_size, 1, kernel_init=zero_init, bias_init=zero_init, rngs=rngs
             ),

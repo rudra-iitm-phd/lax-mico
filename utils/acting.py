@@ -45,31 +45,55 @@ def actor_step(
     eps: float = 2e-2,
 ) -> Tuple:
     obs = env_state.obs
-    clip_min, clip_max = jnp.min(obs), jnp.max(obs)
-    key, sk1, sk2 = jax.random.split(key, 3)
-    noise_1 = jax.random.normal(
-        sk1,
-        obs.shape,
-    )
-    obs = obs + eps * noise_1
-    # obs = jnp.clip(obs, clip_min, clip_max)
-    norm_obs = obs_normalizer.normalize(obs)  # CHANGED: feed normalized obs to policy
-
+    norm_obs = obs_normalizer.normalize(obs)
     action, _ = policy(norm_obs, key)
     n_state = env.step(env_state, action)
-    noise_2 = jax.random.normal(sk2, obs.shape)
-    nclip_min, nclip_max = jnp.min(n_state.obs), jnp.max(n_state.obs)
-    next_observation = n_state.obs + eps * noise_2
-    # next_observation = jnp.clip(next_observation, nclip_min, nclip_max)
     state_extras = {x: n_state.info[x] for x in extra_fields}
     return n_state, Transition(
         observation=obs,
         action=action,
         reward=n_state.reward,
         discount=1 - n_state.done,
-        next_observation=next_observation,
+        next_observation=n_state.obs,
         extras={"state_extras": state_extras},
     )
+
+
+# def actor_step(
+#     env,
+#     env_state,
+#     policy,
+#     obs_normalizer: RunningMeanStd,
+#     key: jnp.ndarray,
+#     extra_fields: Sequence[str] = (),
+#     eps: float = 2e-2,
+# ) -> Tuple:
+#     obs = env_state.obs
+#     clip_min, clip_max = jnp.min(obs), jnp.max(obs)
+#     key, sk1, sk2 = jax.random.split(key, 3)
+#     noise_1 = jax.random.normal(
+#         sk1,
+#         obs.shape,
+#     )
+#     obs = obs + eps * noise_1
+#     # obs = jnp.clip(obs, clip_min, clip_max)
+#     norm_obs = obs_normalizer.normalize(obs)  # CHANGED: feed normalized obs to policy
+
+#     action, _ = policy(norm_obs, key)
+#     n_state = env.step(env_state, action)
+#     noise_2 = jax.random.normal(sk2, obs.shape)
+#     nclip_min, nclip_max = jnp.min(n_state.obs), jnp.max(n_state.obs)
+#     next_observation = n_state.obs + eps * noise_2
+#     # next_observation = jnp.clip(next_observation, nclip_min, nclip_max)
+#     state_extras = {x: n_state.info[x] for x in extra_fields}
+#     return n_state, Transition(
+#         observation=obs,
+#         action=action,
+#         reward=n_state.reward,
+#         discount=1 - n_state.done,
+#         next_observation=next_observation,
+#         extras={"state_extras": state_extras},
+#     )
 
 
 # def actor_step(

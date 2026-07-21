@@ -192,9 +192,14 @@ def sac_train_step(
     def min_state_action_to_state_metric_loss_fn(
         min_state_action_to_state_metric: MinStateActiontoStateMetric,
     ):
+        
+        # d_sa_xb = jnp.abs(r - y) + discount * g_sx_next
+        # d_xb_sa = jnp.abs(r - y) + discount * g_xs_next
 
-        d_sa_xb = jnp.abs(r - y) + discount * g_sx_next
-        d_xb_sa = jnp.abs(r - y) + discount * g_xs_next
+        d_sa_xb, d_xb_sa = target_state_action_metric(jnp.concatenate([s, a], axis = -1), jnp.concatenate([x, b], axis = -1))
+
+        lambda_target = jax.lax.stop_gradient(jnp.maximum(d_sa_xb, d_xb_sa))
+        
 
         h_sax, h_xbs = (
             min_state_action_to_state_metric(jnp.concatenate([s, a], axis=-1), x),
@@ -204,9 +209,13 @@ def sac_train_step(
         #     jnp.concatenate([s, a], axis=-1), jnp.concatenate([x, b], axis=-1)
         # )
 
+        # score_p1, score_p2 = (
+        #     (h_sax - jax.lax.stop_gradient(d_sa_xb)) / beta,
+        #     (h_xbs - jax.lax.stop_gradient(d_xb_sa)) / beta,
+        # )
         score_p1, score_p2 = (
-            (h_sax - jax.lax.stop_gradient(d_sa_xb)) / beta,
-            (h_xbs - jax.lax.stop_gradient(d_xb_sa)) / beta,
+            (h_sax - lambda_target) / beta,
+            (h_xbs - lambda_target) / beta,
         )
         max_score = jax.lax.stop_gradient(jnp.maximum(score_p1.max(), score_p2.max()))
         p1 = (
@@ -275,19 +284,23 @@ def sac_train_step(
     alpha_opt.update(log_alpha, alpha_grads)
 
     g_ss1, g_ss2 = state_metric(s, s)
+    avg_self_state_asymmetry = jnp.mean(jnp.abs(g_ss1 - g_ss2))
     self_state_diff = jnp.mean(jnp.maximum(g_ss1, g_ss2))
 
     g_sx, g_xs = state_metric(s, x)
     cross_state_diff = jnp.mean(jnp.maximum(g_sx, g_xs))
+    avg_cross_state_asymmetry = jnp.mean(jnp.abs(g_sx - g_xs))
 
     d_sa1, d_sa2 = state_action_metric(
         jnp.concatenate([s, a], axis=-1), jnp.concatenate([s, a], axis=-1)
     )
+    avg_self_sa_asymmetry = jnp.mean(jnp.abs(d_sa1 - d_sa2))
     self_state_action_diff = jnp.mean(jnp.maximum(d_sa1, d_sa2))
 
     d_saxb, d_xbsa = state_action_metric(
         jnp.concatenate([s, a], axis=-1), jnp.concatenate([x, b], axis=-1)
     )
+    avg_cross_sa_asymmetry = jnp.mean(jnp.abs(d_saxb - d_xbsa))
     cross_state_action_diff = jnp.mean(jnp.maximum(d_saxb, d_xbsa))
 
     polyak_update(target_critic, critic, config.update_tau)
@@ -314,6 +327,10 @@ def sac_train_step(
         cross_state_diff,
         self_state_action_diff,
         cross_state_action_diff,
+        avg_self_state_asymmetry,
+        avg_cross_state_asymmetry,
+        avg_self_sa_asymmetry,
+        avg_cross_sa_asymmetry,
     )
 
 
@@ -449,7 +466,7 @@ def train_n_steps(
 
             return (key, env_state, buffer_state, obs_normalizer, models, val)
 
-        init_val = (jnp.zeros((), jnp.float32),) * 14
+        init_val = (jnp.zeros((), jnp.float32),) * (14 + 4)
         models = (
             state_metric,
             state_metric_opt,
@@ -519,7 +536,7 @@ def train_n_steps(
             val,
         )
 
-    init_val = (jnp.zeros((), jnp.float32),) * 14
+    init_val = (jnp.zeros((), jnp.float32),) * (14 + 4)
     init_carry = (
         key,
         env_state,
@@ -631,7 +648,7 @@ def transfer_tuning(
     key, act_key = jax.random.split(key)
 
     def act_match_loss_fn(actor: SACGaussianActor):
-        omega = 1e-2
+        omega = 1.0
         state, state_prime = s, x
         action, _ = actor(s, act_key)
         # action_prime = b
@@ -641,6 +658,7 @@ def transfer_tuning(
         u = jnp.maximum(g_sx, g_xs)
         u = u / omega
         state_diff_weight = jnp.exp(jax.lax.stop_gradient(-u + u.min()))
+        u_min = jax.lax.stop_gradient(-u.min())
 
         d_spi_xb, d_xb_spi = state_action_metric(
             jnp.concatenate([state, action], axis=-1),
@@ -649,10 +667,13 @@ def transfer_tuning(
         d = jnp.maximum(d_spi_xb, d_xb_spi)
         d = d / omega
         state_action_diff_weight = jnp.exp(jax.lax.stop_gradient(-d + d.min()))
+        d_min = jax.lax.stop_gradient(-d.min())
 
         loss = jnp.mean(
             state_diff_weight
             * state_action_diff_weight
+            * jnp.exp(u_min)
+            * jnp.exp(d_min)
             * (action - jax.lax.stop_gradient(action_prime)) ** 2
         )
 
@@ -1307,6 +1328,10 @@ def main(args, cfg_env=None):
             cross_state_diff,
             self_state_action_diff,
             cross_state_action_diff,
+            avg_self_state_asymmetry,
+            avg_cross_state_asymmetry,
+            avg_self_sa_asymmetry,
+            avg_cross_sa_asymmetry,
             env_state,
             running_state,
             obs_normalizer,
@@ -1398,6 +1423,16 @@ def main(args, cfg_env=None):
         )
         logger.log_tabular(
             "Metric/cross_state_action_distance", cross_state_action_diff.item()
+        )
+        logger.log_tabular(
+            "Metric/avg_self_state_asymmetry", avg_self_state_asymmetry.item()
+        )
+        logger.log_tabular(
+            "Metric/avg_cross_state_asymmetry", avg_cross_state_asymmetry.item()
+        )
+        logger.log_tabular("Metric/avg_self_sa_asymmetry", avg_self_sa_asymmetry.item())
+        logger.log_tabular(
+            "Metric/avg_cross_sa_asymmetry", avg_cross_sa_asymmetry.item()
         )
 
         logger.log_tabular(
