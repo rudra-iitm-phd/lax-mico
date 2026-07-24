@@ -163,13 +163,26 @@ def sac_train_step(
         d_sa_xb, d_xb_sa = state.models.target_state_action_metric(
             jnp.concatenate([s, a], axis=-1), jnp.concatenate([x, b], axis=-1)
         )
-
         lambda_target = jax.lax.stop_gradient(jnp.maximum(d_sa_xb, d_xb_sa))
+
+        n_act_samples = 5
+
+        act_aug = jax.random.uniform(perm_key, shape= (n_act_samples, b.shape[1], b.shape[2]), minval=-1.0, maxval=1.0)
+        s_repeat = jnp.repeat(s, act_aug.shape[0], axis = 0)
+        x_repeat = jnp.repeat(x, act_aug.shape[0], axis = 0)
+
+        act_aug = jnp.repeat(act_aug[None, :], s.shape[0], axis=0).reshape(-1, b.shape[1], b.shape[2])
+        
+        d_sax_b_aug, d_xbs_a_aug = state.models.target_state_action_metric(jnp.concatenate([s_repeat, act_aug], axis = -1), jnp.concatenate([x_repeat, act_aug], axis = -1))
+
+        lambda_aug_target = jax.lax.stop_gradient(jnp.maximum(d_sax_b_aug, d_xbs_a_aug))
 
         h_sax, h_xbs = (
             min_state_action_to_state_metric(jnp.concatenate([s, a], axis=-1), x),
             min_state_action_to_state_metric(jnp.concatenate([x, b], axis=-1), s),
         )
+
+        h_sax_repeat, h_xbs_repeat = jnp.repeat(h_sax, n_act_samples, axis = 0), jnp.repeat(h_xbs, n_act_samples, axis = 0)
         # d_sa_xb, d_xb_sa = state_action_metric(
         #     jnp.concatenate([s, a], axis=-1), jnp.concatenate([x, b], axis=-1)
         # )
@@ -178,11 +191,14 @@ def sac_train_step(
         #     (h_sax - jax.lax.stop_gradient(d_sa_xb)) / beta,
         #     (h_xbs - jax.lax.stop_gradient(d_xb_sa)) / beta,
         # )
-        score_p1, score_p2 = (
+        score_p1, score_p2, score_p1_aug, score_p2_aug = (
             (h_sax - lambda_target) / beta,
             (h_xbs - lambda_target) / beta,
+            (h_sax_repeat - lambda_aug_target)/beta,
+            (h_xbs_repeat - lambda_aug_target)/beta
         )
         max_score = jax.lax.stop_gradient(jnp.maximum(score_p1.max(), score_p2.max()))
+        max_score_aug = jax.lax.stop_gradient(jnp.maximum(score_p1_aug.max(), score_p2_aug.max()))
         p1 = (
             jnp.exp(score_p1 - max_score)
             - score_p1 * jnp.exp(-max_score)
@@ -193,7 +209,17 @@ def sac_train_step(
             - score_p2 * jnp.exp(-max_score)
             - jnp.exp(-max_score)
         )
-        loss = jnp.mean(p1) + jnp.mean(p2)
+        p1_aug = (
+            jnp.exp(score_p1_aug - max_score_aug)
+            - score_p1_aug * jnp.exp(-max_score_aug)
+            - jnp.exp(-max_score_aug)
+        )
+        p2_aug = (
+            jnp.exp(score_p2_aug - max_score_aug)
+            - score_p2_aug * jnp.exp(-max_score_aug)
+            - jnp.exp(-max_score_aug)
+        )
+        loss = jnp.mean(p1) + jnp.mean(p2) + jnp.mean(p1_aug) + jnp.mean(p2_aug)
         return loss
 
     h_loss, h_grads = nnx.value_and_grad(min_state_action_to_state_metric_loss_fn)(
@@ -218,10 +244,28 @@ def sac_train_step(
             ),
         )
 
+        n_act_samples = 5
+        act_aug = jax.random.uniform(perm_key, shape= (n_act_samples, b.shape[1], b.shape[2]), minval=-1.0, maxval=1.0)
+        s_repeat = jnp.repeat(s, act_aug.shape[0], axis = 0)
+        x_repeat = jnp.repeat(x, act_aug.shape[0], axis = 0)
+        act_aug = jnp.repeat(act_aug[None, :], s.shape[0], axis=0).reshape(-1, b.shape[1], b.shape[2])
+        h_sax_aug, h_xbs_aug = (
+            state.models.target_state_action_to_state_metric(
+                jnp.concatenate([s_repeat, act_aug], axis=-1), x_repeat
+            ),
+            state.models.target_state_action_to_state_metric(
+                jnp.concatenate([x_repeat, act_aug], axis=-1), s_repeat
+            ),
+        )
+        h_sax_aug, h_xbs_aug = jax.lax.stop_gradient(h_sax_aug), jax.lax.stop_gradient(h_xbs_aug)
+        g_sx_repeat, g_xs_repeat = state_metric(s_repeat, x_repeat)
+        
         h_sax, h_xbs = jax.lax.stop_gradient(h_sax), jax.lax.stop_gradient(h_xbs)
         g_sx, g_xs = state_metric(s, x)
-        score_p1, score_p2 = (h_sax - g_sx) / beta, (h_xbs - g_xs) / beta
+        score_p1, score_p2, score_p1_aug, score_p2_aug = (h_sax - g_sx) / beta, (h_xbs - g_xs) / beta, (h_sax_aug - g_sx_repeat) / beta, (h_xbs_aug - g_xs_repeat) / beta
         max_score = jax.lax.stop_gradient(jnp.maximum(score_p1.max(), score_p2.max()))
+        max_score_aug = jax.lax.stop_gradient(jnp.maximum(score_p1_aug.max(), score_p2_aug.max()))
+
 
         p1 = (
             jnp.exp(score_p1 - max_score)
@@ -235,7 +279,19 @@ def sac_train_step(
             - jnp.exp(-max_score)
         )
 
-        loss = jnp.mean(p1) + jnp.mean(p2)
+        p1_aug = (
+            jnp.exp(score_p1_aug - max_score_aug)
+            - score_p1_aug * jnp.exp(-max_score_aug)
+            - jnp.exp(-max_score_aug)
+        )
+
+        p2_aug = (
+            jnp.exp(score_p2_aug - max_score_aug)
+            - score_p2_aug * jnp.exp(-max_score_aug)
+            - jnp.exp(-max_score_aug)
+        )
+
+        loss = jnp.mean(p1) + jnp.mean(p2) + jnp.mean(p1_aug) + jnp.mean(p2_aug)
 
         return loss
 
