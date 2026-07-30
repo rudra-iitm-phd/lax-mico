@@ -142,7 +142,9 @@ def sac_train_step(
             jnp.concatenate([s, a], axis=-1), jnp.concatenate([x, b], axis=-1)
         )
         lambda_current = jnp.maximum(d_sa_xb, d_xb_sa)
-        loss = jnp.mean((lambda_current - lambda_target) ** 2)
+        loss = jnp.mean((lambda_current - lambda_target) ** 2) + 0.1 * jnp.mean(
+            lambda_current**2
+        )
 
         return loss
 
@@ -167,13 +169,23 @@ def sac_train_step(
 
         n_act_samples = 5
 
-        act_aug = jax.random.uniform(perm_key, shape= (n_act_samples, b.shape[1], b.shape[2]), minval=-1.0, maxval=1.0)
-        s_repeat = jnp.repeat(s, act_aug.shape[0], axis = 0)
-        x_repeat = jnp.repeat(x, act_aug.shape[0], axis = 0)
+        act_aug = jax.random.uniform(
+            perm_key,
+            shape=(n_act_samples, b.shape[1], b.shape[2]),
+            minval=-1.0,
+            maxval=1.0,
+        )
+        s_repeat = jnp.repeat(s, act_aug.shape[0], axis=0)
+        x_repeat = jnp.repeat(x, act_aug.shape[0], axis=0)
 
-        act_aug = jnp.repeat(act_aug[None, :], s.shape[0], axis=0).reshape(-1, b.shape[1], b.shape[2])
-        
-        d_sax_b_aug, d_xbs_a_aug = state.models.target_state_action_metric(jnp.concatenate([s_repeat, act_aug], axis = -1), jnp.concatenate([x_repeat, act_aug], axis = -1))
+        act_aug = jnp.repeat(act_aug[None, :], s.shape[0], axis=0).reshape(
+            -1, b.shape[1], b.shape[2]
+        )
+
+        d_sax_b_aug, d_xbs_a_aug = state.models.target_state_action_metric(
+            jnp.concatenate([s_repeat, act_aug], axis=-1),
+            jnp.concatenate([x_repeat, act_aug], axis=-1),
+        )
 
         lambda_aug_target = jax.lax.stop_gradient(jnp.maximum(d_sax_b_aug, d_xbs_a_aug))
 
@@ -182,7 +194,10 @@ def sac_train_step(
             min_state_action_to_state_metric(jnp.concatenate([x, b], axis=-1), s),
         )
 
-        h_sax_repeat, h_xbs_repeat = jnp.repeat(h_sax, n_act_samples, axis = 0), jnp.repeat(h_xbs, n_act_samples, axis = 0)
+        h_sax_repeat, h_xbs_repeat = (
+            jnp.repeat(h_sax, n_act_samples, axis=0),
+            jnp.repeat(h_xbs, n_act_samples, axis=0),
+        )
         # d_sa_xb, d_xb_sa = state_action_metric(
         #     jnp.concatenate([s, a], axis=-1), jnp.concatenate([x, b], axis=-1)
         # )
@@ -194,11 +209,13 @@ def sac_train_step(
         score_p1, score_p2, score_p1_aug, score_p2_aug = (
             (h_sax - lambda_target) / beta,
             (h_xbs - lambda_target) / beta,
-            (h_sax_repeat - lambda_aug_target)/beta,
-            (h_xbs_repeat - lambda_aug_target)/beta
+            (h_sax_repeat - lambda_aug_target) / beta,
+            (h_xbs_repeat - lambda_aug_target) / beta,
         )
         max_score = jax.lax.stop_gradient(jnp.maximum(score_p1.max(), score_p2.max()))
-        max_score_aug = jax.lax.stop_gradient(jnp.maximum(score_p1_aug.max(), score_p2_aug.max()))
+        max_score_aug = jax.lax.stop_gradient(
+            jnp.maximum(score_p1_aug.max(), score_p2_aug.max())
+        )
         p1 = (
             jnp.exp(score_p1 - max_score)
             - score_p1 * jnp.exp(-max_score)
@@ -219,7 +236,8 @@ def sac_train_step(
             - score_p2_aug * jnp.exp(-max_score_aug)
             - jnp.exp(-max_score_aug)
         )
-        loss = jnp.mean(p1) + jnp.mean(p2) + jnp.mean(p1_aug) + jnp.mean(p2_aug)
+        # loss = jnp.mean(p1) + jnp.mean(p2) + jnp.mean(p1_aug) + jnp.mean(p2_aug)
+        loss = jnp.mean(p1) + jnp.mean(p2)
         return loss
 
     h_loss, h_grads = nnx.value_and_grad(min_state_action_to_state_metric_loss_fn)(
@@ -245,10 +263,17 @@ def sac_train_step(
         )
 
         n_act_samples = 5
-        act_aug = jax.random.uniform(perm_key, shape= (n_act_samples, b.shape[1], b.shape[2]), minval=-1.0, maxval=1.0)
-        s_repeat = jnp.repeat(s, act_aug.shape[0], axis = 0)
-        x_repeat = jnp.repeat(x, act_aug.shape[0], axis = 0)
-        act_aug = jnp.repeat(act_aug[None, :], s.shape[0], axis=0).reshape(-1, b.shape[1], b.shape[2])
+        act_aug = jax.random.uniform(
+            perm_key,
+            shape=(n_act_samples, b.shape[1], b.shape[2]),
+            minval=-1.0,
+            maxval=1.0,
+        )
+        s_repeat = jnp.repeat(s, act_aug.shape[0], axis=0)
+        x_repeat = jnp.repeat(x, act_aug.shape[0], axis=0)
+        act_aug = jnp.repeat(act_aug[None, :], s.shape[0], axis=0).reshape(
+            -1, b.shape[1], b.shape[2]
+        )
         h_sax_aug, h_xbs_aug = (
             state.models.target_state_action_to_state_metric(
                 jnp.concatenate([s_repeat, act_aug], axis=-1), x_repeat
@@ -257,15 +282,24 @@ def sac_train_step(
                 jnp.concatenate([x_repeat, act_aug], axis=-1), s_repeat
             ),
         )
-        h_sax_aug, h_xbs_aug = jax.lax.stop_gradient(h_sax_aug), jax.lax.stop_gradient(h_xbs_aug)
+        h_sax_aug, h_xbs_aug = (
+            jax.lax.stop_gradient(h_sax_aug),
+            jax.lax.stop_gradient(h_xbs_aug),
+        )
         g_sx_repeat, g_xs_repeat = state_metric(s_repeat, x_repeat)
-        
+
         h_sax, h_xbs = jax.lax.stop_gradient(h_sax), jax.lax.stop_gradient(h_xbs)
         g_sx, g_xs = state_metric(s, x)
-        score_p1, score_p2, score_p1_aug, score_p2_aug = (h_sax - g_sx) / beta, (h_xbs - g_xs) / beta, (h_sax_aug - g_sx_repeat) / beta, (h_xbs_aug - g_xs_repeat) / beta
+        score_p1, score_p2, score_p1_aug, score_p2_aug = (
+            (h_sax - g_sx) / beta,
+            (h_xbs - g_xs) / beta,
+            (h_sax_aug - g_sx_repeat) / beta,
+            (h_xbs_aug - g_xs_repeat) / beta,
+        )
         max_score = jax.lax.stop_gradient(jnp.maximum(score_p1.max(), score_p2.max()))
-        max_score_aug = jax.lax.stop_gradient(jnp.maximum(score_p1_aug.max(), score_p2_aug.max()))
-
+        max_score_aug = jax.lax.stop_gradient(
+            jnp.maximum(score_p1_aug.max(), score_p2_aug.max())
+        )
 
         p1 = (
             jnp.exp(score_p1 - max_score)
@@ -291,7 +325,8 @@ def sac_train_step(
             - jnp.exp(-max_score_aug)
         )
 
-        loss = jnp.mean(p1) + jnp.mean(p2) + jnp.mean(p1_aug) + jnp.mean(p2_aug)
+        # loss = jnp.mean(p1) + jnp.mean(p2) + jnp.mean(p1_aug) + jnp.mean(p2_aug)
+        loss = jnp.mean(p1) + jnp.mean(p2)
 
         return loss
 
@@ -333,12 +368,19 @@ def sac_train_step(
 
     cross_state_action_diff = jnp.mean(lambda_cross)
 
-    self_state_action_to_state_distance = state.models.min_state_action_to_state_metric(jnp.concatenate([s, a], axis = -1), s)
-    cross_state_action_to_state_distance = state.models.min_state_action_to_state_metric(jnp.concatenate([s, a], axis = -1), x)
+    self_state_action_to_state_distance = state.models.min_state_action_to_state_metric(
+        jnp.concatenate([s, a], axis=-1), s
+    )
+    cross_state_action_to_state_distance = (
+        state.models.min_state_action_to_state_metric(
+            jnp.concatenate([s, a], axis=-1), x
+        )
+    )
 
     h_lambda_self = jnp.mean(jnp.abs(lambda_self - self_state_action_to_state_distance))
-    h_lambda_cross = jnp.mean(jnp.abs(lambda_cross - cross_state_action_to_state_distance))
-
+    h_lambda_cross = jnp.mean(
+        jnp.abs(lambda_cross - cross_state_action_to_state_distance)
+    )
 
     polyak_update(state.models.target_critic, state.models.critic, config.update_tau)
     polyak_update(
@@ -377,10 +419,14 @@ def sac_train_step(
         cross_state_asymmetry_avg=avg_cross_state_asymmetry,
         self_state_action_asymmetry_avg=avg_self_sa_asymmetry,
         cross_state_action_asymmetry_avg=avg_cross_sa_asymmetry,
-        self_state_action_to_state_distance=jnp.mean(self_state_action_to_state_distance),
-        cross_state_action_to_state_distance=jnp.mean(cross_state_action_to_state_distance),
+        self_state_action_to_state_distance=jnp.mean(
+            self_state_action_to_state_distance
+        ),
+        cross_state_action_to_state_distance=jnp.mean(
+            cross_state_action_to_state_distance
+        ),
         h_lambda_diff_self=h_lambda_self,
-        h_lambda_diff_cross=h_lambda_cross
+        h_lambda_diff_cross=h_lambda_cross,
     )
 
     return (agent_aux, metric_aux)
@@ -999,7 +1045,7 @@ def main(args, cfg_env=None):
             "Metric/cross_state_action_distance",
             metric_aux.cross_state_action_distance.item(),
         )
-        
+
         logger.log_tabular(
             "Metric/avg_self_state_asymmetry",
             metric_aux.self_state_asymmetry_avg.item(),
@@ -1017,10 +1063,20 @@ def main(args, cfg_env=None):
             metric_aux.cross_state_action_asymmetry_avg.item(),
         )
 
-        logger.log_tabular("Metric/self_state_action_to_state_distance", metric_aux.self_state_action_to_state_distance.item())
-        logger.log_tabular("Metric/cross_state_action_to_state_distance", metric_aux.cross_state_action_to_state_distance.item())
-        logger.log_tabular("Metric/h_lambda_diff_self", metric_aux.h_lambda_diff_self.item())
-        logger.log_tabular("Metric/h_lambda_diff_cross", metric_aux.h_lambda_diff_cross.item())
+        logger.log_tabular(
+            "Metric/self_state_action_to_state_distance",
+            metric_aux.self_state_action_to_state_distance.item(),
+        )
+        logger.log_tabular(
+            "Metric/cross_state_action_to_state_distance",
+            metric_aux.cross_state_action_to_state_distance.item(),
+        )
+        logger.log_tabular(
+            "Metric/h_lambda_diff_self", metric_aux.h_lambda_diff_self.item()
+        )
+        logger.log_tabular(
+            "Metric/h_lambda_diff_cross", metric_aux.h_lambda_diff_cross.item()
+        )
 
         logger.log_tabular(
             "Eval/Return",
