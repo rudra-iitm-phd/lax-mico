@@ -1,6 +1,6 @@
 import argparse
-from distutils.util import strtobool
 
+from distutils.util import strtobool
 from flax import struct
 
 
@@ -43,7 +43,7 @@ def sac_args():
     # reproducibility
     p.add_argument("--seed", type=int, default=0)
     # environment
-    p.add_argument("--task", type=str, default="HumanoidStand-v0")
+    p.add_argument("--task", type=str, default="HumanoidRun")
     p.add_argument("--episode-length", type=int, default=1000)
     p.add_argument("--num_envs", type=int, default=128)
     # logging
