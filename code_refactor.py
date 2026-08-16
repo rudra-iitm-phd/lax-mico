@@ -627,7 +627,28 @@ def transfer_tuning(
     )
     state.optimizers.actor.update(state.models.actor, act_rep_grads)
 
-    metric_aux = MetricAux(act_rep_loss=act_rep_loss)
+    def critic_rep_loss_fn(critic: EnsembleCritic):
+        lambda_sa_xb, lambda_xb_sa = state.models.state_action_metric(
+            jnp.concatenate([s, a], axis=-1), jnp.concatenate([x, b], axis=-1)
+        )
+        d_sa_xb = jnp.maximum(lambda_sa_xb, lambda_xb_sa)
+
+        Q_sa1, Q_sa2 = critic(jnp.concatenate([s, a], axis=-1))
+        Q_xb1, Q_xb2 = critic(jnp.concatenate([x, b], axis=-1))
+
+        loss = jnp.mean(
+            jax.nn.relu(jnp.abs(Q_sa1 - Q_xb1) - jax.lax.stop_gradient(d_sa_xb))
+        ) + jnp.mean(
+            jax.nn.relu(jnp.abs(Q_sa2 - Q_xb2) - jax.lax.stop_gradient(d_sa_xb))
+        )
+        return loss
+
+    critic_rep_loss, critic_rep_grads = nnx.value_and_grad(critic_rep_loss_fn)(
+        state.models.critic
+    )
+    state.optimizers.critic.update(state.models.critic, critic_rep_grads)
+
+    metric_aux = MetricAux(act_rep_loss=act_rep_loss, critic_rep_loss=critic_rep_loss)
 
     return metric_aux
 
@@ -1034,6 +1055,7 @@ def main(args, cfg_env=None):
             metric_aux.state_action_to_state_metric_loss.item(),
         )
         logger.log_tabular("Loss/Act_rep_loss", tune_aux.act_rep_loss.item())
+        logger.log_tabular("Loss/Critic_rep_loss", tune_aux.critic_rep_loss.item())
         # logger.log_tabular("Loss/Value_Matching_loss", val_match_loss.item())
 
         logger.log_tabular("SAC/Alpha", agent_aux.alpha.item())
