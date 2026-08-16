@@ -138,15 +138,32 @@ def sac_train_step(
     lambda_target = jax.lax.stop_gradient(jnp.abs(r - y) + discount * u_target)
 
     def state_action_metric_loss_fn(state_action_metric: EnsembleStateActionMetric):
-        d_sa_xb, d_xb_sa = state_action_metric(
+        lambda_sa_xb, lambda_xb_sa = state_action_metric(
             jnp.concatenate([s, a], axis=-1), jnp.concatenate([x, b], axis=-1)
         )
-        lambda_current = jnp.maximum(d_sa_xb, d_xb_sa)
-        loss = jnp.mean((lambda_current - lambda_target) ** 2) + 0.1 * jnp.mean(
-            lambda_current**2
+        lambda_target_1 = jax.lax.stop_gradient(jnp.abs(r - y) + discount * g_sx_next)
+        loss1 = jnp.mean((lambda_sa_xb - lambda_target_1) ** 2) + 0.1 * jnp.mean(
+            (1 - lambda_sa_xb) ** 2
         )
 
-        return loss
+        lambda_target_2 = jax.lax.stop_gradient(jnp.abs(r - y) + discount * g_xs_next)
+        loss2 = jnp.mean((lambda_xb_sa - lambda_target_2) ** 2) + 0.1 * jnp.mean(
+            (1 - lambda_xb_sa) ** 2
+        )
+
+        lambda_sa_sa1, lambda_sa_sa2 = state_action_metric(
+            jnp.concatenate([s, a], axis=-1), jnp.concatenate([s, a], axis=-1)
+        )
+
+        # lambda_curr = jnp.maximum(lambda_sa_xb, lambda_xb_sa)
+
+        # loss = jnp.mean((lambda_curr - lambda_target) ** 2) + 0.1 * jnp.mean(
+        #     (1 - lambda_curr) ** 2
+        # )
+
+        self_loss = jnp.mean(jnp.maximum(lambda_sa_sa1, lambda_sa_sa2) ** 2)
+
+        return loss1 + loss2 + 0.2 * self_loss
 
     lambda_loss, lambda_grads = nnx.value_and_grad(state_action_metric_loss_fn)(
         state.models.state_action_metric
@@ -237,7 +254,8 @@ def sac_train_step(
             - jnp.exp(-max_score_aug)
         )
         # loss = jnp.mean(p1) + jnp.mean(p2) + jnp.mean(p1_aug) + jnp.mean(p2_aug)
-        loss = jnp.mean(p1) + jnp.mean(p2)
+        h_sa_s = min_state_action_to_state_metric(jnp.concatenate([s, a], axis=-1), s)
+        loss = jnp.mean(p1) + jnp.mean(p2) + 0.2 * jnp.mean(h_sa_s**2)
         return loss
 
     h_loss, h_grads = nnx.value_and_grad(min_state_action_to_state_metric_loss_fn)(
@@ -326,7 +344,14 @@ def sac_train_step(
         )
 
         # loss = jnp.mean(p1) + jnp.mean(p2) + jnp.mean(p1_aug) + jnp.mean(p2_aug)
-        loss = jnp.mean(p1) + jnp.mean(p2)
+        g_ss1, g_ss2 = state_metric(s, s)
+        loss = (
+            jnp.mean(p1)
+            + jnp.mean(p2)
+            + 0.1 * jnp.mean((1 - jnp.max(g_sx, -1)) ** 2)
+            + 0.1 * jnp.mean((1 - jnp.max(g_xs, -1)) ** 2)
+            + 0.2 * jnp.mean(jnp.maximum(g_ss1, g_ss2) ** 2)
+        )
 
         return loss
 
@@ -582,12 +607,17 @@ def transfer_tuning(
         state_action_diff_weight = jnp.exp(jax.lax.stop_gradient(-d + d.min()))
         d_min = jax.lax.stop_gradient(-d.min())
 
+        # loss = jnp.mean(
+        #     state_diff_weight
+        #     * state_action_diff_weight
+        #     * jnp.exp(u_min)
+        #     * jnp.exp(d_min)
+        #     * (action - jax.lax.stop_gradient(action_prime)) ** 2
+        # )
+
         loss = jnp.mean(
-            state_diff_weight
-            * state_action_diff_weight
-            * jnp.exp(u_min)
-            * jnp.exp(d_min)
-            * (action - jax.lax.stop_gradient(action_prime)) ** 2
+            jax.lax.stop_gradient(jnp.abs(1 - u)) * d
+            - jax.lax.stop_gradient(jnp.abs(u)) * d
         )
 
         return loss
