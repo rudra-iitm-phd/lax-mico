@@ -1,0 +1,467 @@
+E0822 19:17:04.333357  321378 cuda_executor.cc:1526] Could not get kernel mode driver version: (INVALID_ARGUMENT: Version does not match the format X.Y.Z)
+E0822 19:17:04.341954  321269 cuda_executor.cc:1526] Could not get kernel mode driver version: (INVALID_ARGUMENT: Version does not match the format X.Y.Z)
+[32mStart prefilling replay buffer[0m
+[32mStart SAC training[0m
+---------------------------------------
+|       Train/Steps |        7.68e+05 |
+|  Loss/Loss_critic |          0.0285 |
+|   Loss/Loss_actor |           -2.14 |
+|   Loss/Loss_alpha |        -0.00169 |
+|         SAC/Alpha |         0.00656 |
+|    SAC/LogPi_mean |            2.26 |
+|       SAC/Q1_mean |            2.02 |
+|       SAC/Q2_mean |               2 |
+|  Norm/actor_model |            32.7 |
+| Norm/critic_model |            60.9 |
+|       Eval/Return |            81.7 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        8.96e+05 |
+|  Loss/Loss_critic |          0.0351 |
+|   Loss/Loss_actor |           -7.35 |
+|   Loss/Loss_alpha |         -0.0028 |
+|         SAC/Alpha |          0.0185 |
+|    SAC/LogPi_mean |            2.15 |
+|       SAC/Q1_mean |            7.15 |
+|       SAC/Q2_mean |            7.13 |
+|  Norm/actor_model |            42.7 |
+| Norm/critic_model |            70.8 |
+|       Eval/Return |             353 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        1.02e+06 |
+|  Loss/Loss_critic |            1.29 |
+|   Loss/Loss_actor |           -13.9 |
+|   Loss/Loss_alpha |        -0.00171 |
+|         SAC/Alpha |          0.0231 |
+|    SAC/LogPi_mean |            2.07 |
+|       SAC/Q1_mean |            13.7 |
+|       SAC/Q2_mean |            13.7 |
+|  Norm/actor_model |            50.6 |
+| Norm/critic_model |              79 |
+|       Eval/Return |             492 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        1.15e+06 |
+|  Loss/Loss_critic |          0.0535 |
+|   Loss/Loss_actor |             -21 |
+|   Loss/Loss_alpha |        -0.00228 |
+|         SAC/Alpha |          0.0272 |
+|    SAC/LogPi_mean |            2.08 |
+|       SAC/Q1_mean |            20.7 |
+|       SAC/Q2_mean |            20.7 |
+|  Norm/actor_model |            58.3 |
+| Norm/critic_model |            86.2 |
+|       Eval/Return |             511 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        1.28e+06 |
+|  Loss/Loss_critic |            2.02 |
+|   Loss/Loss_actor |           -26.7 |
+|   Loss/Loss_alpha |        -0.00179 |
+|         SAC/Alpha |          0.0285 |
+|    SAC/LogPi_mean |            2.06 |
+|       SAC/Q1_mean |            26.5 |
+|       SAC/Q2_mean |            26.5 |
+|  Norm/actor_model |              65 |
+| Norm/critic_model |            92.7 |
+|       Eval/Return |             526 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        1.41e+06 |
+|  Loss/Loss_critic |            3.02 |
+|   Loss/Loss_actor |           -31.3 |
+|   Loss/Loss_alpha |        -0.00153 |
+|         SAC/Alpha |          0.0289 |
+|    SAC/LogPi_mean |            2.05 |
+|       SAC/Q1_mean |            31.1 |
+|       SAC/Q2_mean |              31 |
+|  Norm/actor_model |            71.5 |
+| Norm/critic_model |            98.7 |
+|       Eval/Return |             538 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        1.54e+06 |
+|  Loss/Loss_critic |          0.0966 |
+|   Loss/Loss_actor |           -34.6 |
+|   Loss/Loss_alpha |         0.00167 |
+|         SAC/Alpha |          0.0284 |
+|    SAC/LogPi_mean |            1.94 |
+|       SAC/Q1_mean |            34.4 |
+|       SAC/Q2_mean |            34.4 |
+|  Norm/actor_model |            77.6 |
+| Norm/critic_model |             104 |
+|       Eval/Return |             544 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        1.66e+06 |
+|  Loss/Loss_critic |            15.1 |
+|   Loss/Loss_actor |           -36.9 |
+|   Loss/Loss_alpha |        -0.00122 |
+|         SAC/Alpha |          0.0297 |
+|    SAC/LogPi_mean |            2.04 |
+|       SAC/Q1_mean |            36.7 |
+|       SAC/Q2_mean |            36.7 |
+|  Norm/actor_model |            83.2 |
+| Norm/critic_model |             110 |
+|       Eval/Return |             554 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        1.79e+06 |
+|  Loss/Loss_critic |            5.19 |
+|   Loss/Loss_actor |           -39.1 |
+|   Loss/Loss_alpha |         0.00532 |
+|         SAC/Alpha |          0.0297 |
+|    SAC/LogPi_mean |            1.82 |
+|       SAC/Q1_mean |              39 |
+|       SAC/Q2_mean |              39 |
+|  Norm/actor_model |            88.7 |
+| Norm/critic_model |             115 |
+|       Eval/Return |             567 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        1.92e+06 |
+|  Loss/Loss_critic |             6.7 |
+|   Loss/Loss_actor |           -40.3 |
+|   Loss/Loss_alpha |         0.00353 |
+|         SAC/Alpha |          0.0311 |
+|    SAC/LogPi_mean |            1.89 |
+|       SAC/Q1_mean |            40.1 |
+|       SAC/Q2_mean |            40.1 |
+|  Norm/actor_model |            93.7 |
+| Norm/critic_model |             120 |
+|       Eval/Return |             569 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        2.05e+06 |
+|  Loss/Loss_critic |            15.7 |
+|   Loss/Loss_actor |           -41.5 |
+|   Loss/Loss_alpha |        -0.00121 |
+|         SAC/Alpha |          0.0302 |
+|    SAC/LogPi_mean |            2.04 |
+|       SAC/Q1_mean |            41.4 |
+|       SAC/Q2_mean |            41.4 |
+|  Norm/actor_model |            98.9 |
+| Norm/critic_model |             124 |
+|       Eval/Return |             576 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        2.18e+06 |
+|  Loss/Loss_critic |          0.0754 |
+|   Loss/Loss_actor |           -42.6 |
+|   Loss/Loss_alpha |          0.0013 |
+|         SAC/Alpha |          0.0308 |
+|    SAC/LogPi_mean |            1.96 |
+|       SAC/Q1_mean |            42.5 |
+|       SAC/Q2_mean |            42.5 |
+|  Norm/actor_model |             104 |
+| Norm/critic_model |             129 |
+|       Eval/Return |             581 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |         2.3e+06 |
+|  Loss/Loss_critic |            23.5 |
+|   Loss/Loss_actor |           -43.4 |
+|   Loss/Loss_alpha |         -0.0013 |
+|         SAC/Alpha |          0.0312 |
+|    SAC/LogPi_mean |            2.04 |
+|       SAC/Q1_mean |            43.3 |
+|       SAC/Q2_mean |            43.3 |
+|  Norm/actor_model |             109 |
+| Norm/critic_model |             133 |
+|       Eval/Return |             584 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        2.43e+06 |
+|  Loss/Loss_critic |          0.0747 |
+|   Loss/Loss_actor |           -44.3 |
+|   Loss/Loss_alpha |         0.00204 |
+|         SAC/Alpha |          0.0307 |
+|    SAC/LogPi_mean |            1.93 |
+|       SAC/Q1_mean |            44.2 |
+|       SAC/Q2_mean |            44.2 |
+|  Norm/actor_model |             114 |
+| Norm/critic_model |             138 |
+|       Eval/Return |             587 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        2.56e+06 |
+|  Loss/Loss_critic |            7.73 |
+|   Loss/Loss_actor |           -44.8 |
+|   Loss/Loss_alpha |         0.00673 |
+|         SAC/Alpha |          0.0319 |
+|    SAC/LogPi_mean |            1.79 |
+|       SAC/Q1_mean |            44.7 |
+|       SAC/Q2_mean |            44.7 |
+|  Norm/actor_model |             119 |
+| Norm/critic_model |             142 |
+|       Eval/Return |             590 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        2.69e+06 |
+|  Loss/Loss_critic |           0.049 |
+|   Loss/Loss_actor |           -44.9 |
+|   Loss/Loss_alpha |        -0.00315 |
+|         SAC/Alpha |          0.0306 |
+|    SAC/LogPi_mean |             2.1 |
+|       SAC/Q1_mean |            44.8 |
+|       SAC/Q2_mean |            44.8 |
+|  Norm/actor_model |             123 |
+| Norm/critic_model |             146 |
+|       Eval/Return |             589 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        2.82e+06 |
+|  Loss/Loss_critic |            6.71 |
+|   Loss/Loss_actor |           -45.7 |
+|   Loss/Loss_alpha |         -0.0035 |
+|         SAC/Alpha |          0.0316 |
+|    SAC/LogPi_mean |            2.11 |
+|       SAC/Q1_mean |            45.6 |
+|       SAC/Q2_mean |            45.6 |
+|  Norm/actor_model |             128 |
+| Norm/critic_model |             150 |
+|       Eval/Return |             594 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        2.94e+06 |
+|  Loss/Loss_critic |          0.0962 |
+|   Loss/Loss_actor |           -45.8 |
+|   Loss/Loss_alpha |         0.00435 |
+|         SAC/Alpha |          0.0313 |
+|    SAC/LogPi_mean |            1.86 |
+|       SAC/Q1_mean |            45.7 |
+|       SAC/Q2_mean |            45.7 |
+|  Norm/actor_model |             132 |
+| Norm/critic_model |             153 |
+|       Eval/Return |             593 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        3.07e+06 |
+|  Loss/Loss_critic |            9.36 |
+|   Loss/Loss_actor |           -46.5 |
+|   Loss/Loss_alpha |         0.00224 |
+|         SAC/Alpha |          0.0308 |
+|    SAC/LogPi_mean |            1.93 |
+|       SAC/Q1_mean |            46.4 |
+|       SAC/Q2_mean |            46.4 |
+|  Norm/actor_model |             136 |
+| Norm/critic_model |             157 |
+|       Eval/Return |             597 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |         3.2e+06 |
+|  Loss/Loss_critic |            10.1 |
+|   Loss/Loss_actor |           -46.6 |
+|   Loss/Loss_alpha |        -0.00283 |
+|         SAC/Alpha |          0.0304 |
+|    SAC/LogPi_mean |            2.09 |
+|       SAC/Q1_mean |            46.5 |
+|       SAC/Q2_mean |            46.5 |
+|  Norm/actor_model |             140 |
+| Norm/critic_model |             161 |
+|       Eval/Return |             596 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        3.33e+06 |
+|  Loss/Loss_critic |          0.0455 |
+|   Loss/Loss_actor |           -47.1 |
+|   Loss/Loss_alpha |       -0.000413 |
+|         SAC/Alpha |          0.0316 |
+|    SAC/LogPi_mean |            2.01 |
+|       SAC/Q1_mean |            47.1 |
+|       SAC/Q2_mean |            47.1 |
+|  Norm/actor_model |             144 |
+| Norm/critic_model |             164 |
+|       Eval/Return |             596 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        3.46e+06 |
+|  Loss/Loss_critic |          0.0682 |
+|   Loss/Loss_actor |             -47 |
+|   Loss/Loss_alpha |        0.000704 |
+|         SAC/Alpha |           0.031 |
+|    SAC/LogPi_mean |            1.98 |
+|       SAC/Q1_mean |            46.9 |
+|       SAC/Q2_mean |            46.9 |
+|  Norm/actor_model |             148 |
+| Norm/critic_model |             168 |
+|       Eval/Return |             601 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        3.58e+06 |
+|  Loss/Loss_critic |          0.0742 |
+|   Loss/Loss_actor |           -47.5 |
+|   Loss/Loss_alpha |        -0.00293 |
+|         SAC/Alpha |          0.0305 |
+|    SAC/LogPi_mean |             2.1 |
+|       SAC/Q1_mean |            47.5 |
+|       SAC/Q2_mean |            47.5 |
+|  Norm/actor_model |             152 |
+| Norm/critic_model |             171 |
+|       Eval/Return |             598 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        3.71e+06 |
+|  Loss/Loss_critic |          0.0532 |
+|   Loss/Loss_actor |           -47.5 |
+|   Loss/Loss_alpha |         0.00217 |
+|         SAC/Alpha |          0.0312 |
+|    SAC/LogPi_mean |            1.93 |
+|       SAC/Q1_mean |            47.5 |
+|       SAC/Q2_mean |            47.5 |
+|  Norm/actor_model |             156 |
+| Norm/critic_model |             174 |
+|       Eval/Return |             599 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        3.84e+06 |
+|  Loss/Loss_critic |           0.085 |
+|   Loss/Loss_actor |           -47.1 |
+|   Loss/Loss_alpha |        -0.00072 |
+|         SAC/Alpha |          0.0305 |
+|    SAC/LogPi_mean |            2.02 |
+|       SAC/Q1_mean |            47.1 |
+|       SAC/Q2_mean |            47.1 |
+|  Norm/actor_model |             159 |
+| Norm/critic_model |             177 |
+|       Eval/Return |             603 |
+---------------------------------------
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+---------------------------------------
+|       Train/Steps |        3.97e+06 |
+|  Loss/Loss_critic |          0.0967 |
+|   Loss/Loss_actor |           -47.5 |
+|   Loss/Loss_alpha |        0.000133 |
+|         SAC/Alpha |          0.0305 |
+|    SAC/LogPi_mean |               2 |
+|       SAC/Q1_mean |            47.4 |
+|       SAC/Q2_mean |            47.4 |
+|  Norm/actor_model |             163 |
+| Norm/critic_model |             181 |
+|       Eval/Return |             605 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |         4.1e+06 |
+|  Loss/Loss_critic |            18.1 |
+|   Loss/Loss_actor |           -48.3 |
+|   Loss/Loss_alpha |         0.00179 |
+|         SAC/Alpha |          0.0302 |
+|    SAC/LogPi_mean |            1.94 |
+|       SAC/Q1_mean |            48.3 |
+|       SAC/Q2_mean |            48.4 |
+|  Norm/actor_model |             166 |
+| Norm/critic_model |             184 |
+|       Eval/Return |             606 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        4.22e+06 |
+|  Loss/Loss_critic |          0.0716 |
+|   Loss/Loss_actor |           -48.3 |
+|   Loss/Loss_alpha |         0.00156 |
+|         SAC/Alpha |          0.0301 |
+|    SAC/LogPi_mean |            1.95 |
+|       SAC/Q1_mean |            48.3 |
+|       SAC/Q2_mean |            48.2 |
+|  Norm/actor_model |             170 |
+| Norm/critic_model |             187 |
+|       Eval/Return |             607 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        4.35e+06 |
+|  Loss/Loss_critic |            28.8 |
+|   Loss/Loss_actor |           -48.9 |
+|   Loss/Loss_alpha |        -0.00391 |
+|         SAC/Alpha |          0.0295 |
+|    SAC/LogPi_mean |            2.13 |
+|       SAC/Q1_mean |            48.9 |
+|       SAC/Q2_mean |            48.9 |
+|  Norm/actor_model |             173 |
+| Norm/critic_model |             190 |
+|       Eval/Return |             610 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        4.48e+06 |
+|  Loss/Loss_critic |           0.066 |
+|   Loss/Loss_actor |             -49 |
+|   Loss/Loss_alpha |         0.00419 |
+|         SAC/Alpha |            0.03 |
+|    SAC/LogPi_mean |            1.86 |
+|       SAC/Q1_mean |              49 |
+|       SAC/Q2_mean |              49 |
+|  Norm/actor_model |             176 |
+| Norm/critic_model |             193 |
+|       Eval/Return |             611 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        4.61e+06 |
+|  Loss/Loss_critic |          0.0521 |
+|   Loss/Loss_actor |           -49.4 |
+|   Loss/Loss_alpha |        -0.00272 |
+|         SAC/Alpha |          0.0292 |
+|    SAC/LogPi_mean |            2.09 |
+|       SAC/Q1_mean |            49.4 |
+|       SAC/Q2_mean |            49.5 |
+|  Norm/actor_model |             179 |
+| Norm/critic_model |             196 |
+|       Eval/Return |             615 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        4.74e+06 |
+|  Loss/Loss_critic |             9.9 |
+|   Loss/Loss_actor |           -49.9 |
+|   Loss/Loss_alpha |        -0.00137 |
+|         SAC/Alpha |          0.0303 |
+|    SAC/LogPi_mean |            2.05 |
+|       SAC/Q1_mean |            49.9 |
+|       SAC/Q2_mean |            49.9 |
+|  Norm/actor_model |             182 |
+| Norm/critic_model |             199 |
+|       Eval/Return |             614 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        4.86e+06 |
+|  Loss/Loss_critic |          0.0555 |
+|   Loss/Loss_actor |             -50 |
+|   Loss/Loss_alpha |          0.0024 |
+|         SAC/Alpha |          0.0276 |
+|    SAC/LogPi_mean |            1.91 |
+|       SAC/Q1_mean |            50.1 |
+|       SAC/Q2_mean |            50.1 |
+|  Norm/actor_model |             185 |
+| Norm/critic_model |             202 |
+|       Eval/Return |             619 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        4.99e+06 |
+|  Loss/Loss_critic |            9.18 |
+|   Loss/Loss_actor |           -50.3 |
+|   Loss/Loss_alpha |       -0.000502 |
+|         SAC/Alpha |          0.0277 |
+|    SAC/LogPi_mean |            2.02 |
+|       SAC/Q1_mean |            50.3 |
+|       SAC/Q2_mean |            50.3 |
+|  Norm/actor_model |             188 |
+| Norm/critic_model |             205 |
+|       Eval/Return |             616 |
+---------------------------------------
+---------------------------------------
+|       Train/Steps |        5.12e+06 |
+|  Loss/Loss_critic |          0.0698 |
+|   Loss/Loss_actor |           -50.6 |
+|   Loss/Loss_alpha |        -0.00698 |
+|         SAC/Alpha |          0.0267 |
+|    SAC/LogPi_mean |            2.26 |
+|       SAC/Q1_mean |            50.6 |
+|       SAC/Q2_mean |            50.6 |
+|  Norm/actor_model |             191 |
+| Norm/critic_model |             207 |
+|       Eval/Return |             616 |
+---------------------------------------
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m

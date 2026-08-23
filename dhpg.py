@@ -1,75 +1,106 @@
 """
-Deep Homomorphic Policy Gradient (DHPG) - state-observation, deterministic variant.
+Deep Homomorphic Policy Gradient (DHPG) - state-observation, deterministic
+variant ('hpg_update_type=double_add' in the author's config).
 
-This mirrors "Continuous MDP Homomorphisms and Homomorphic Policy Gradient"
-(Rezaei-Shoshtari et al., NeurIPS 2022), Algorithm 1 in Appendix E.1, with the
-pixel-only lines (8-11: image augmentation + CNN encoding) removed, exactly as
-the paper instructs for state observations.
+This version is built from a direct read of the author's actual PyTorch
+source (agents/hpg.py, models/core.py, models/transition_model.py,
+utils/utils.py, cfgs/agent/hpg.yaml, cfgs/config.yaml) rather than from the
+paper's prose/pseudocode alone. Several things the paper's Eq. 9-13 and
+Appendix E.1 describe slightly differently from what the code actually does;
+where they disagree, this file follows the code, since the goal is exact
+reproduction of the author's implementation.
 
-WHAT CHANGED RELATIVE TO YOUR sac_single.py, AND WHY
-------------------------------------------------------
-1. Actor is now DETERMINISTIC (DDPG/TD3-style), not SACGaussianActor.
-   The HPG theorem (Thm 4/5 in the paper) is derived for deterministic
-   policies + a bijective action map g_s. There is no principled "stochastic
-   DHPG" in the NeurIPS repo path you linked (that variant is in the JMLR
-   follow-up, a different algorithm/repo path: `stochastichpg`). So to be
-   "consistent with their implementation" the actor has to drop SAC's
-   entropy term and become deterministic, with exploration noise injected
-   externally (Alg. 1 line 5) and target policy smoothing (line 14, from TD3).
+KEY CORRECTIONS RELATIVE TO PRIOR VERSIONS OF THIS FILE
+--------------------------------------------------------
+1. SINGLE-HEAD CRITICS, NO CLIPPED DOUBLE-Q.
+   `HPGAgent` uses `DDPGCritic` (one Q output) for BOTH the actual and
+   abstract critic - never the twin-Q `Critic` class also defined in
+   models/core.py. No `min(q1,q2)` anywhere. This matches the paper's own
+   text: "the only difference between our DDPG and TD3 is the clipped
+   double Q-learning present in TD3, which appears to be hurting the
+   performance in some tasks of DMC." -> `SingleQCritic` below.
 
-2. There is no log_alpha / entropy machinery at all in DHPG.
+2. NO LayerNorm ANYWHERE. Plain MLPs, orthogonal weight init + zero bias
+   init (`utils.weight_init`), matching every network in models/core.py.
 
-3. The "metric" networks (EnsembleStateMetric / EnsembleStateActionMetric /
-   MinStateActiontoStateMetric) you had are NOT what DHPG uses. DHPG's
-   homomorphism map h = (f, g) is just two small encoders:
-       f_phi(s)      : S -> S_bar        (state encoder)
-       g_eta(s, a)   : S x A -> A_bar    (action encoder, state-conditioned)
-   trained with exactly two losses (Eq. 12-13 in the paper):
-       L_lax  = lax bisimulation loss (pairwise, permuted batch)
-       L_h    = transition-consistency + reward-consistency loss
-   These replace your state_metric / state_action_metric / min_state_action
-   networks and their asymmetric losses entirely.
+3. StateEncoder / ActionEncoder / RewardPredictor are 2-hidden-layer MLPs
+   (not 1).
 
-4. DHPG additionally needs, and your code did not have:
-       - an ABSTRACT critic Q_bar(s_bar, a_bar)         (Eq. 10)
-       - a reward predictor R_bar(s_bar)                (used in Eq. 13)
-       - a probabilistic transition model tau_nu(s_bar' | s_bar, a_bar)
-         outputting a diagonal Gaussian                 (used in Eq. 12-13)
+4. TransitionModel (ProbabilisticTransitionModel) predicts sigma directly
+   via a sigmoid-scaled head (min_sigma=1e-4, max_sigma=10), not log_std.
 
-5. Target networks: ONLY psi (actual critic), psi_bar (abstract critic), and
-   theta (actor) get Polyak-updated targets (Alg. 1 line 3). f, g, the reward
-   predictor, and the transition model have no target copies - remove the
-   deepcopy'd targets you had for the metric nets.
+5. Lax bisimulation loss (get_lax_bisim):
+   - Huber ("smooth_l1", beta=1) distance for both z_dist and r_dist, not
+     L1/abs.
+   - The transition-model forward pass used for the bisim TARGET is
+     computed with a fully detached (stop_gradient) input/output - this
+     means action_encoder (eta) gets ZERO gradient from the lax loss.
+     eta's only gradient source is the transition/reward-consistency loss.
+   - The weight on the transition term is the actual per-transition
+     `discount` (here: gamma * (1-done)), not a fixed hyperparameter.
+   - The distance itself is sqrt((mu1-mu2)^2+(sigma1-sigma2)^2) computed
+     PER-DIMENSION THEN AVERAGED, not a joint L2 norm over the full vector.
 
-6. Critic loss is the standard (n-step, here 1-step for simplicity) TD error
-   with a MIN over twin critics for the actual critic, and separately for the
-   abstract critic using s_bar = f(s), a_bar = g(s, pi(s)) computed through
-   the (non-target) homomorphism map but a TARGET actor for the bootstrap
-   action, with clipped Gaussian noise (TD3 target policy smoothing).
+6. Reward-consistency loss (get_transition_reward_loss) predicts reward
+   from the SAMPLED NEXT abstract state (`reward_predictor(sample)`), not
+   from the current abstract state f(s).
 
-7. Actor loss is Eq. (11): -(Q_actual(s, pi(s)) + Q_abstract(f(s), g(s, pi(s)))),
-   i.e. DPG and HPG gradients are literally summed and backpropagated once,
-   exactly as the paper's default `hpg` variant does (not `hpg_ind`).
+7. Transition consistency loss is a real per-dimension Gaussian NLL:
+   0.5*((mu-target)/sigma)^2 + log(sigma).
 
-8. Delayed actor + target updates (Alg. 1 line 19, "if t mod d"): the critic
-   and homomorphism map are updated every step; actor and target nets are
-   updated every `actor_update_freq` steps.
+8. TD3 target-policy-smoothing noise is TWO INDEPENDENT draws - one for the
+   actual critic's bootstrap, a separate one added directly in
+   abstract-action space for the abstract critic's bootstrap. The noise
+   SCALE is the same decaying stddev_schedule used for exploration
+   (linear(1.0, 0.1, T)), clipped to +/-stddev_clip=0.3 - stddev_clip is a
+   clip bound, not a fixed scale.
 
-WHAT I DID NOT CHANGE / LEFT FOR YOU
--------------------------------------
-- I kept n-step return at n=1 for simplicity, matching your buffer
-  (UniformSamplingQueue with dummy 1-step transitions). The paper uses n=3.
-  If you want n=3, you need an n-step buffer wrapper; happy to add if wanted.
-- I reused your EnsembleCritic as-is for BOTH the actual and abstract critic
-  (their input/output dims match exactly in the state-observation case, per
-  Appendix E.2: "the abstract MDP has the same state and action dimensions
-  as the actual MDP").
-- I left prefill_buffer, RunningMeanStd/RunningStatistics, UniformSamplingQueue,
-  EpochLogger, wrap_env_for_training untouched - only the agent/model side and
-  the train step change.
-- StateEncoder / ActionEncoder / RewardPredictor / TransitionModel are defined
-  locally below using the same nnx.Module + `rngs=` convention your other
-  models use, so you can freely move them into utils/models.py.
+9. A separate pure-random-action exploration phase, `num_expl_steps=2000`,
+   distinct from replay-buffer warmup (`num_seed_frames=4000`). Also:
+   exploration noise added in `act()` is NOT clipped to [-1,1].
+
+10. NO gradient clipping anywhere in the official optimizer setup (plain
+    torch.optim.Adam, no clip_by_global_norm equivalent). Dropped here to
+    match; if you see instability, re-adding a loose global-norm clip is a
+    reasonable, paper-non-contradicting safety net (the paper doesn't
+    specify either way).
+
+11. `update_every_steps` (yaml) is ONE cadence gating BOTH the actor update
+    and all three target-network Polyak updates - not two separate
+    frequencies.
+
+12. `critic` and `abstract_critic` are each optimized with their OWN
+    backward pass:
+      - critic + state_encoder + action_encoder + reward_predictor +
+        transition_model: ONE joint loss / ONE backward
+        (critic_loss + homomorphic_coef*lax_bisim_loss + transition_loss +
+        reward_loss), matching `update_critic`.
+      - abstract_critic: its OWN separate backward, with z/a_bar/next_z/
+        next_a_bar all computed under stop_gradient - matching
+        `update_abstract_critic`'s `with torch.no_grad():` block. This
+        reverts an earlier ("Fix 1") change of mine that wired the abstract
+        critic's gradient into the encoders - that was wrong; the original
+        stop_gradient in this codebase's very first draft was correct.
+
+OPEN ASSUMPTION - PLEASE CONFIRM
+---------------------------------
+`matching_dims` defaults to False in cfgs/config.yaml, which would make the
+abstract state/action dims a fixed `feature_dim` (50) instead of
+obs_dim/act_dim. Appendix E.2 says abstract dims == actual dims for state
+observations, and your existing scaffolding already assumes this. This file
+assumes `matching_dims=True` was set via a task-level or CLI override for
+the state-observation experiments. If you find the actual override (a task
+yaml, or your launch command), confirm/correct this.
+
+NOT YET MATCHED (known remaining gaps, out of scope for this pass)
+--------------------------------------------------------------------
+- n-step returns (nstep=3 in cfgs/config.yaml); this buffer only does n=1.
+- num_envs>1 / train_per_step>1 have NO equivalent in the author's strictly
+  single-env, one-gradient-step-per-env-step training loop. Set num_envs
+  as low as your infra allows and --train-per-step 1 for closest fidelity.
+- The exact `stddev_schedule` string wasn't in the files you sent (only
+  referenced as `${stddev_schedule}`). Assumed Table 1's
+  "linear(1.0, 0.1, 1e6)" here - correct via CLI/default_cfg if different.
 """
 
 import functools
@@ -92,7 +123,7 @@ from mujoco_playground import registry
 from utils.acting import actor_step, wrap_env_for_training
 from utils.buffer import RunningMeanStd, RunningStatistics, UniformSamplingQueue
 from utils.logger import EpochLogger
-from utils.models import EnsembleCritic, get_tree_norm
+from utils.models import get_tree_norm
 from utils.types import Transition
 from utils.utils import make_static_config_from_dict, sac_args  # reuse the CLI parser
 
@@ -102,125 +133,195 @@ default_cfg = {
     "eval_episode_freq": 5,
     "hidden_size": 256,
     "lr": 1e-4,
-    "max_grad_norm": 10,
     "gamma": 0.99,
-    "update_tau": 0.01,  # Table 1: target soft-update tau
-    "train_per_step": 1,
+    "update_tau": 0.01,  # critic_target_tau in cfgs/agent/hpg.yaml
+    "train_per_step": 1,  # no equivalent in author code; keep at 1 for fidelity
     "episode_length": 1000,
-    "warmup_samples": int(4e3),  # Table 1: seed frames
+    "warmup_samples": int(4e3),  # num_seed_frames
     "max_replay_size": int(1e6),
     "batch_size": int(256),
     "total_env_steps": int(1e6),
-    # DHPG-specific:
-    "actor_update_freq": 2,  # Alg.1: delayed actor update d
-    "target_update_freq": 2,  # Table 1: target network update frequency
-    "stddev_clip": 0.3,  # TD3 target-policy-smoothing clip c
+    # DHPG-specific, from cfgs/agent/hpg.yaml:
+    "update_every_steps": 2,  # gates BOTH actor update and target Polyak updates
+    "num_expl_steps": 2000,  # pure-random-action phase, separate from warmup_samples
+    "stddev_clip": 0.3,
     "explore_stddev_start": 1.0,
     "explore_stddev_end": 0.1,
-    "explore_stddev_decay_steps": int(1e6),
-    "lax_reward_coef": 1.0,  # c_r in Eq. (5)/(12)
-    "lax_transition_coef": 1.0,  # alpha (weight on the W2 term) in Eq. (12)
+    "explore_stddev_decay_steps": int(1e6),  # ASSUMED - confirm actual stddev_schedule
+    "homomorphic_coef": 1.0,  # single coefficient on lax_bisim_loss only
+    "min_sigma": 1e-4,
+    "max_sigma": 1e1,
 }
 
 
+def orthogonal_linear(rngs, in_dim, out_dim):
+    """Matches utils.utils.weight_init: nn.init.orthogonal_ on the weight,
+    zero-fill on the bias, applied to every nn.Linear in the author's code."""
+    return nnx.Linear(
+        in_dim,
+        out_dim,
+        kernel_init=jax.nn.initializers.orthogonal(),
+        bias_init=nnx.initializers.zeros,
+        rngs=rngs,
+    )
+
+
+def smooth_l1(a, b, beta: float = 1.0):
+    """torch.nn.functional.smooth_l1_loss(reduction='none'), beta=1.0
+    (the default PyTorch uses): 0.5*x^2/beta if |x|<beta else |x|-0.5*beta."""
+    diff = jnp.abs(a - b)
+    return jnp.where(diff < beta, 0.5 * diff**2 / beta, diff - 0.5 * beta)
+
+
 # --------------------------------------------------------------------------- #
-# Homomorphism-map components (Eq. 12-13). Feature dims == obs/act dims for
-# state observations (Appendix E.2).
+# Homomorphism-map components. Feature dims == obs/act dims (matching_dims);
+# see "OPEN ASSUMPTION" above.
 # --------------------------------------------------------------------------- #
 class StateEncoder(nnx.Module):
-    """f_phi(s) -> s_bar. Maps actual states to abstract states."""
+    """f_phi(s) -> s_bar. models.core.StateEncoder: 2 hidden layers."""
 
-    def __init__(self, rngs: nnx.Rngs, obs_dim: int, hidden_size: int):
-        self.l1 = nnx.Linear(obs_dim, hidden_size, rngs=rngs)
-        self.l2 = nnx.Linear(hidden_size, obs_dim, rngs=rngs)
+    def __init__(
+        self, rngs: nnx.Rngs, obs_dim: int, abstract_state_dim: int, hidden_size: int
+    ):
+        self.l1 = orthogonal_linear(rngs, obs_dim, hidden_size)
+        self.l2 = orthogonal_linear(rngs, hidden_size, hidden_size)
+        self.l3 = orthogonal_linear(rngs, hidden_size, abstract_state_dim)
 
     def __call__(self, s):
         x = nnx.relu(self.l1(s))
-        return self.l2(x)
+        x = nnx.relu(self.l2(x))
+        return self.l3(x)
 
 
 class ActionEncoder(nnx.Module):
-    """g_eta(s, a) -> a_bar. State-conditioned action encoder (tanh-bounded
-    to stay in the same range as actions, consistent with the paper treating
-    A_bar as a subset of R^n like A)."""
+    """g_eta(s, a) -> a_bar, tanh-bounded. models.core.ActionEncoder: 2 hidden layers."""
 
-    def __init__(self, rngs: nnx.Rngs, obs_dim: int, act_dim: int, hidden_size: int):
-        self.l1 = nnx.Linear(obs_dim + act_dim, hidden_size, rngs=rngs)
-        self.l2 = nnx.Linear(hidden_size, act_dim, rngs=rngs)
+    def __init__(
+        self,
+        rngs: nnx.Rngs,
+        obs_dim: int,
+        act_dim: int,
+        abstract_action_dim: int,
+        hidden_size: int,
+    ):
+        self.l1 = orthogonal_linear(rngs, obs_dim + act_dim, hidden_size)
+        self.l2 = orthogonal_linear(rngs, hidden_size, hidden_size)
+        self.l3 = orthogonal_linear(rngs, hidden_size, abstract_action_dim)
 
     def __call__(self, s, a):
         x = nnx.relu(self.l1(jnp.concatenate([s, a], axis=-1)))
-        return jnp.tanh(self.l2(x))
+        x = nnx.relu(self.l2(x))
+        return jnp.tanh(self.l3(x))
 
 
 class RewardPredictor(nnx.Module):
-    """R_bar_rho(s_bar) -> scalar reward, used in Eq. (13)."""
+    """R_bar_rho(s_bar) -> scalar reward. models.core.RewardPredictor: 2 hidden layers."""
 
-    def __init__(self, rngs: nnx.Rngs, obs_dim: int, hidden_size: int):
-        self.l1 = nnx.Linear(obs_dim, hidden_size, rngs=rngs)
-        self.l2 = nnx.Linear(hidden_size, 1, rngs=rngs)
+    def __init__(self, rngs: nnx.Rngs, abstract_state_dim: int, hidden_size: int):
+        self.l1 = orthogonal_linear(rngs, abstract_state_dim, hidden_size)
+        self.l2 = orthogonal_linear(rngs, hidden_size, hidden_size)
+        self.l3 = orthogonal_linear(rngs, hidden_size, 1)
 
     def __call__(self, s_bar):
         x = nnx.relu(self.l1(s_bar))
-        return self.l2(x)[..., 0]
+        x = nnx.relu(self.l2(x))
+        return jnp.squeeze(self.l3(x), axis=-1)
 
 
 class TransitionModel(nnx.Module):
-    """tau_nu(s_bar' | s_bar, a_bar) -> diagonal Gaussian (mean, log_std),
-    used in Eq. (12) (W2 distance) and Eq. (13) (next-state prediction)."""
+    """tau_nu(s_bar' | s_bar, a_bar) -> diagonal Gaussian (mean, sigma).
+    Matches models.transition_model.ProbabilisticTransitionModel: sigma via
+    a sigmoid-scaled head, NOT log_std."""
 
-    def __init__(self, rngs: nnx.Rngs, obs_dim: int, act_dim: int, hidden_size: int):
-        self.l1 = nnx.Linear(obs_dim + act_dim, hidden_size, rngs=rngs)
-        self.mean = nnx.Linear(hidden_size, obs_dim, rngs=rngs)
-        self.log_std = nnx.Linear(hidden_size, obs_dim, rngs=rngs)
+    def __init__(
+        self,
+        rngs: nnx.Rngs,
+        abstract_state_dim: int,
+        abstract_action_dim: int,
+        hidden_size: int,
+        min_sigma: float = 1e-4,
+        max_sigma: float = 1e1,
+    ):
+        self.l1 = orthogonal_linear(
+            rngs, abstract_state_dim + abstract_action_dim, hidden_size
+        )
+        self.l2 = orthogonal_linear(rngs, hidden_size, hidden_size)
+        self.fc_mu = orthogonal_linear(rngs, hidden_size, abstract_state_dim)
+        self.fc_sigma = orthogonal_linear(rngs, hidden_size, abstract_state_dim)
+        self.min_sigma = min_sigma
+        self.max_sigma = max_sigma
 
     def __call__(self, s_bar, a_bar):
         x = nnx.relu(self.l1(jnp.concatenate([s_bar, a_bar], axis=-1)))
-        mean = self.mean(x)
-        log_std = jnp.clip(self.log_std(x), -5.0, 2.0)
-        return mean, log_std
+        x = nnx.relu(self.l2(x))
+        mu = self.fc_mu(x)
+        sigma = nnx.sigmoid(self.fc_sigma(x))
+        sigma = self.min_sigma + (self.max_sigma - self.min_sigma) * sigma
+        return mu, sigma
 
     def sample(self, s_bar, a_bar, key):
-        mean, log_std = self(s_bar, a_bar)
-        return mean + jnp.exp(log_std) * jax.random.normal(key, mean.shape)
+        mu, sigma = self(s_bar, a_bar)
+        return mu + sigma * jax.random.normal(key, mu.shape)
 
 
 class DeterministicActor(nnx.Module):
-    """pi_theta(s) -> a in [-1, 1]^act_dim. Replaces SACGaussianActor: DHPG's
-    HPG derivation requires a deterministic policy."""
+    """pi_theta(s) -> a in [-1, 1]^act_dim. models.core.DeterministicActor
+    with linear_approx=False: plain 2-hidden-layer MLP, NO LayerNorm."""
 
     def __init__(self, rngs: nnx.Rngs, obs_dim: int, act_dim: int, hidden_size: int):
-        self.l1 = nnx.Linear(obs_dim, hidden_size, rngs=rngs)
-        self.l2 = nnx.Linear(hidden_size, hidden_size, rngs=rngs)
-        self.l3 = nnx.Linear(hidden_size, act_dim, rngs=rngs)
+        self.l1 = orthogonal_linear(rngs, obs_dim, hidden_size)
+        self.l2 = orthogonal_linear(rngs, hidden_size, hidden_size)
+        self.l3 = orthogonal_linear(rngs, hidden_size, act_dim)
 
     def __call__(self, s, key=None):
-        # `key` kept only so this class is drop-in compatible with the
-        # (obs, key) call signature that utils.acting.actor_step expects for
-        # a stochastic policy; it is unused here (deterministic policy).
+        # `key` kept only for drop-in compatibility with utils.acting.actor_step's
+        # (obs, key) -> action signature; unused (deterministic policy).
         x = nnx.relu(self.l1(s))
         x = nnx.relu(self.l2(x))
         return jnp.tanh(self.l3(x))
 
 
-class ExploratoryActor(nnx.Module):
-    """Wraps a DeterministicActor with linearly-decayed Gaussian exploration
-    noise (Alg. 1 line 5: a ~ pi_theta(s) + eps, eps ~ N(0, sigma)), while
-    keeping the (obs, key) -> (action, log_prob) signature actor_step needs.
-    log_prob is returned as zeros (unused, deterministic policy)."""
+class SingleQCritic(nnx.Module):
+    """models.core.DDPGCritic: ONE Q-head, no twin/ensemble, no clipped
+    double-Q. Used for BOTH the actual and abstract critic - DHPG's own
+    ablation text confirms it deliberately omits TD3's clipped double-Q."""
 
-    def __init__(self, actor: DeterministicActor, stddev: float):
+    def __init__(self, rngs: nnx.Rngs, obs_dim: int, act_dim: int, hidden_size: int):
+        self.l1 = orthogonal_linear(rngs, obs_dim + act_dim, hidden_size)
+        self.l2 = orthogonal_linear(rngs, hidden_size, hidden_size)
+        self.l3 = orthogonal_linear(rngs, hidden_size, 1)
+
+    def __call__(self, obs_act):
+        x = nnx.relu(self.l1(obs_act))
+        x = nnx.relu(self.l2(x))
+        return jnp.squeeze(self.l3(x), axis=-1)
+
+
+class ExploratoryActor(nnx.Module):
+    """Matches HPGAgent.act(): for step < num_expl_steps, pure uniform
+    random action; otherwise pi_theta(s) + N(0, stddev), UNCLIPPED (the
+    author's act() does not clip the noisy action to [-1,1])."""
+
+    def __init__(self, actor: DeterministicActor, stddev, use_random_action):
         self.actor = actor
         self.stddev = stddev
+        self.use_random_action = use_random_action  # scalar bool/array
 
     def __call__(self, s, key):
+        key, noise_key, rand_key = jax.random.split(key, 3)
         mean_act = self.actor(s)
-        noise = self.stddev * jax.random.normal(key, mean_act.shape)
-        act = jnp.clip(mean_act + noise, -1.0, 1.0)
+        noisy_act = mean_act + self.stddev * jax.random.normal(
+            noise_key, mean_act.shape
+        )
+        random_act = jax.random.uniform(
+            rand_key, mean_act.shape, minval=-1.0, maxval=1.0
+        )
+        act = jnp.where(self.use_random_action, random_act, noisy_act)
         return act, jnp.zeros(act.shape[:-1])
 
 
 def explore_stddev(step, cfg):
+    """utils.utils.schedule(stddev_schedule, step) for a linear(init,final,duration) schedule."""
     frac = jnp.clip(step / cfg.explore_stddev_decay_steps, 0.0, 1.0)
     return cfg.explore_stddev_start + frac * (
         cfg.explore_stddev_end - cfg.explore_stddev_start
@@ -228,16 +329,9 @@ def explore_stddev(step, cfg):
 
 
 # --------------------------------------------------------------------------- #
-# Containers. These MUST be real nnx graph nodes (nnx.Module), not plain
-# @dataclass objects, or nnx.jit has no idea how to split/trace them (that
-# was the cause of the "Error interpreting argument ... as an abstract array"
-# TypeError). nnx.Module.__setattr__ automatically registers nnx.Module /
-# nnx.Optimizer attributes as sub-nodes of the graph.
+# Containers.
 # --------------------------------------------------------------------------- #
 class HomomorphismMap(nnx.Module):
-    """Bundles f_phi, g_eta, R_bar_rho, tau_nu into a single module so they
-    can share one optimizer / one gradient call (Eq. 12 + 13 combined)."""
-
     def __init__(
         self,
         state_encoder: StateEncoder,
@@ -251,38 +345,48 @@ class HomomorphismMap(nnx.Module):
         self.transition_model = transition_model
 
 
+class CriticHomomorphismBundle(nnx.Module):
+    """critic + homomorphism map, jointly optimized with ONE backward pass,
+    matching `update_critic`'s single `loss.backward()` over
+    critic_loss + homomorphic_coef*lax_bisim_loss + transition_loss +
+    reward_loss. The abstract critic is DELIBERATELY NOT part of this
+    bundle - see `abstract_critic_step`."""
+
+    def __init__(self, critic: SingleQCritic, homomorphism: HomomorphismMap):
+        self.critic = critic
+        self.homomorphism = homomorphism
+
+
 class DHPGModels(nnx.Module):
     def __init__(
         self,
         actor: DeterministicActor,
         target_actor: DeterministicActor,
-        critic: EnsembleCritic,
-        target_critic: EnsembleCritic,
-        abstract_critic: EnsembleCritic,
-        target_abstract_critic: EnsembleCritic,
-        homomorphism: HomomorphismMap,
+        target_critic: SingleQCritic,
+        abstract_critic: SingleQCritic,
+        target_abstract_critic: SingleQCritic,
+        bundle: CriticHomomorphismBundle,
     ):
         self.actor = actor
         self.target_actor = target_actor
-        self.critic = critic
         self.target_critic = target_critic
         self.abstract_critic = abstract_critic
         self.target_abstract_critic = target_abstract_critic
-        self.homomorphism = homomorphism
+        self.bundle = bundle
+        # No target network for f_phi/g_eta - matches Alg.1's target init
+        # (only psi, psi_bar, theta get targets).
 
 
 class DHPGOptimizers(nnx.Module):
     def __init__(
         self,
         actor: nnx.Optimizer,
-        critic: nnx.Optimizer,
+        critic_homomorphism: nnx.Optimizer,
         abstract_critic: nnx.Optimizer,
-        homomorphism: nnx.Optimizer,
     ):
         self.actor = actor
-        self.critic = critic
+        self.critic_homomorphism = critic_homomorphism
         self.abstract_critic = abstract_critic
-        self.homomorphism = homomorphism
 
 
 class DHPGState(nnx.Module):
@@ -293,24 +397,19 @@ class DHPGState(nnx.Module):
 
 @struct.dataclass
 class DHPGAux:
-    """A flax.struct.dataclass (NOT a plain @dataclass) so it's registered as
-    a pytree: this is required because it flows through nnx.fori_loop as a
-    carry value, and jax needs to know how to flatten/unflatten it. It's also
-    immutable (frozen), so update fields with `.replace(...)`, never `x.f = v`."""
-
-    actual_critic_loss: jnp.ndarray = field(default_factory=lambda: jnp.array(0.0))
+    critic_loss: jnp.ndarray = field(default_factory=lambda: jnp.array(0.0))
     abstract_critic_loss: jnp.ndarray = field(default_factory=lambda: jnp.array(0.0))
-    lax_loss: jnp.ndarray = field(default_factory=lambda: jnp.array(0.0))
-    homomorphism_consistency_loss: jnp.ndarray = field(
-        default_factory=lambda: jnp.array(0.0)
-    )
+    lax_bisim_loss: jnp.ndarray = field(default_factory=lambda: jnp.array(0.0))
+    transition_loss: jnp.ndarray = field(default_factory=lambda: jnp.array(0.0))
+    reward_loss: jnp.ndarray = field(default_factory=lambda: jnp.array(0.0))
     actor_loss: jnp.ndarray = field(default_factory=lambda: jnp.array(0.0))
-    q1_mean: jnp.ndarray = field(default_factory=lambda: jnp.array(0.0))
-    q2_mean: jnp.ndarray = field(default_factory=lambda: jnp.array(0.0))
+    q_mean: jnp.ndarray = field(default_factory=lambda: jnp.array(0.0))
     q_bar_mean: jnp.ndarray = field(default_factory=lambda: jnp.array(0.0))
+    value_equivalence: jnp.ndarray = field(default_factory=lambda: jnp.array(0.0))
 
 
 def polyak_update(target_model, curr_model, tau: float):
+    """utils.utils.soft_update_params: target <- tau*curr + (1-tau)*target."""
     target_param = nnx.state(target_model, nnx.Param)
     curr_param = nnx.state(curr_model, nnx.Param)
     new_target = jax.tree_util.tree_map(
@@ -320,137 +419,178 @@ def polyak_update(target_model, curr_model, tau: float):
     return target_model
 
 
-def w2_gaussian(mean1, log_std1, mean2, log_std2):
-    """Closed-form W2 distance between two diagonal Gaussians (Sec. 6, the
-    paper's substitute for the Kantorovich metric, following Zhang et al.)."""
-    mean_term = jnp.sum((mean1 - mean2) ** 2, axis=-1)
-    std_term = jnp.sum((jnp.exp(log_std1) - jnp.exp(log_std2)) ** 2, axis=-1)
-    return jnp.sqrt(jnp.clip(mean_term + std_term, 1e-8, None))
+# --------------------------------------------------------------------------- #
+# update_critic: critic + homomorphism map, ONE joint loss / ONE backward.
+# --------------------------------------------------------------------------- #
+def critic_and_homomorphism_step(state: DHPGState, data: Transition, config, step, key):
+    obs, act, reward, done_discount, next_obs = (
+        data.observation,
+        data.action,
+        data.reward,
+        data.discount,  # raw (1-done); scale by gamma below to match author's stored `discount` semantics
+        data.next_observation,
+    )
+    discount = config.gamma * done_discount
+    models = state.models
+
+    key, noise_key, perm_key, sample_key = jax.random.split(key, 4)
+
+    stddev = explore_stddev(step, config)
+
+    # ---- Target Q for the ACTUAL critic (TD3 smoothing noise #1) --------- #
+    next_act_mean = models.target_actor(next_obs)
+    noise = jnp.clip(
+        stddev * jax.random.normal(noise_key, next_act_mean.shape),
+        -config.stddev_clip,
+        config.stddev_clip,
+    )
+    next_action = jnp.clip(next_act_mean + noise, -1.0, 1.0)
+    target_Q = models.target_critic(jnp.concatenate([next_obs, next_action], axis=-1))
+    target_Q = jax.lax.stop_gradient(reward + discount * target_Q)
+
+    def joint_loss_fn(bundle: CriticHomomorphismBundle):
+        critic = bundle.critic
+        state_encoder = bundle.homomorphism.state_encoder
+        action_encoder = bundle.homomorphism.action_encoder
+        reward_predictor = bundle.homomorphism.reward_predictor
+        transition_model = bundle.homomorphism.transition_model
+
+        # --- actual critic loss (single Q, MSE) --- #
+        current_Q = critic(jnp.concatenate([obs, act], axis=-1))
+        critic_loss = jnp.mean((current_Q - target_Q) ** 2)
+
+        # --- abstract representations (differentiable) --- #
+        s_bar = state_encoder(obs)
+        a_bar = action_encoder(obs, act)
+
+        # --- lax bisimulation loss (get_lax_bisim) --- #
+        # Transition-model call used ONLY for the bisim target is fully
+        # detached: this is what makes action_encoder (eta) receive zero
+        # gradient from this loss term (matches the `with torch.no_grad()`
+        # block around this call in the author's code).
+        mean1, sigma1 = transition_model(s_bar, a_bar)
+        mean1 = jax.lax.stop_gradient(mean1)
+        sigma1 = jax.lax.stop_gradient(sigma1)
+
+        perm = jax.random.permutation(perm_key, obs.shape[0])
+        s_bar_2 = s_bar[perm]
+        reward_2 = reward[perm]
+        mean2, sigma2 = mean1[perm], sigma1[perm]
+
+        z_dist = jnp.mean(smooth_l1(s_bar, s_bar_2), axis=-1)
+        r_dist = smooth_l1(reward, reward_2)
+        transition_dist = jnp.mean(
+            jnp.sqrt((mean1 - mean2) ** 2 + (sigma1 - sigma2) ** 2), axis=-1
+        )
+        lax_bisimilarity = jax.lax.stop_gradient(r_dist + discount * transition_dist)
+        lax_bisim_loss = jnp.mean((z_dist - lax_bisimilarity) ** 2)
+
+        # --- transition + reward consistency loss (get_transition_reward_loss) --- #
+        next_s_bar_target = jax.lax.stop_gradient(state_encoder(next_obs))
+        mean_pred, sigma_pred = transition_model(s_bar, a_bar)  # fresh, WITH grad
+        diff = (mean_pred - next_s_bar_target) / sigma_pred
+        transition_loss = jnp.mean(0.5 * diff**2 + jnp.log(sigma_pred))
+
+        # sample_prediction() in the original code is a further independent
+        # forward pass through the (deterministic-given-params) network;
+        # reusing mean_pred/sigma_pred here is numerically equivalent and
+        # avoids a redundant third forward pass.
+        sampled_next = mean_pred + sigma_pred * jax.random.normal(
+            sample_key, mean_pred.shape
+        )
+        pred_next_reward = reward_predictor(sampled_next)
+        reward_loss = jnp.mean((pred_next_reward - reward) ** 2)
+
+        total_loss = (
+            critic_loss
+            + config.homomorphic_coef * lax_bisim_loss
+            + transition_loss
+            + reward_loss
+        )
+        aux = (
+            critic_loss,
+            lax_bisim_loss,
+            transition_loss,
+            reward_loss,
+            jnp.mean(current_Q),
+        )
+        return total_loss, aux
+
+    (_, aux), grads = nnx.value_and_grad(joint_loss_fn, has_aux=True)(models.bundle)
+    state.optimizers.critic_homomorphism.update(models.bundle, grads)
+
+    critic_loss, lax_bisim_loss, transition_loss, reward_loss, q_mean = aux
+    return (
+        critic_loss,
+        lax_bisim_loss,
+        transition_loss,
+        reward_loss,
+        q_mean,
+        next_action,
+        stddev,
+    )
 
 
 # --------------------------------------------------------------------------- #
-# Critic + homomorphism-map update (Eq. 9, 10, 12, 13). Runs every step.
+# update_abstract_critic: entirely separate optimizer, everything stop-
+# gradiented - eta/phi get NO gradient from this loss.
 # --------------------------------------------------------------------------- #
-def critic_and_homomorphism_step(state: DHPGState, data: Transition, config, key):
-    obs, act, reward, discount, next_obs = (
+def abstract_critic_step(state: DHPGState, data: Transition, config, step, key, stddev):
+    obs, act, reward, done_discount, next_obs = (
         data.observation,
         data.action,
         data.reward,
         data.discount,
         data.next_observation,
     )
+    discount = config.gamma * done_discount
     models = state.models
+    key, noise_key = jax.random.split(key)
 
-    key, noise_key, perm_key, trans_key_i, trans_key_j = jax.random.split(key, 5)
+    z = jax.lax.stop_gradient(models.bundle.homomorphism.state_encoder(obs))
+    next_z = jax.lax.stop_gradient(models.bundle.homomorphism.state_encoder(next_obs))
+    a_bar = jax.lax.stop_gradient(models.bundle.homomorphism.action_encoder(obs, act))
 
-    # Target policy smoothing (TD3, Alg.1 line 14).
-    next_act_mean = models.target_actor(next_obs)
-    smoothing_noise = jnp.clip(
-        config.stddev_clip * jax.random.normal(noise_key, next_act_mean.shape),
-        -2 * config.stddev_clip,
-        2 * config.stddev_clip,
+    # TD3 smoothing noise #2: independent draw, added directly in
+    # abstract-action space (matches `update_abstract_critic` exactly).
+    next_act_actual = models.target_actor(next_obs)
+    next_a_bar_clean = models.bundle.homomorphism.action_encoder(
+        next_obs, next_act_actual
     )
-    next_act = jnp.clip(next_act_mean + smoothing_noise, -1.0, 1.0)
-
-    # ---- Eq. (9): actual critic loss ---------------------------------- #
-    def actual_critic_loss_fn(critic):
-        q1_t, q2_t = models.target_critic(
-            jnp.concatenate([next_obs, next_act], axis=-1)
-        )
-        target_q = reward + config.gamma * discount * jnp.minimum(q1_t, q2_t)
-        target_q = jax.lax.stop_gradient(target_q)
-        q1, q2 = critic(jnp.concatenate([obs, act], axis=-1))
-        loss = jnp.mean((q1 - target_q) ** 2) + jnp.mean((q2 - target_q) ** 2)
-        return loss, (jnp.mean(q1), jnp.mean(q2))
-
-    (actual_critic_loss, (q1_mean, q2_mean)), critic_grads = nnx.value_and_grad(
-        actual_critic_loss_fn, has_aux=True
-    )(models.critic)
-    state.optimizers.critic.update(models.critic, critic_grads)
-
-    # ---- Homomorphism map + Eq. (12) lax bisimulation + Eq. (13) ------ #
-    def homomorphism_loss_fn(homo: HomomorphismMap):
-        state_encoder = homo.state_encoder
-        action_encoder = homo.action_encoder
-        reward_predictor = homo.reward_predictor
-        transition_model = homo.transition_model
-
-        s_bar = state_encoder(obs)
-        a_bar = action_encoder(obs, act)
-        next_s_bar_target = state_encoder(next_obs)  # for Eq. (13) target
-
-        # Eq. (13): transition + reward consistency of the homomorphism map.
-        sampled_next_s_bar = transition_model.sample(s_bar, a_bar, trans_key_i)
-        trans_consistency = jnp.mean(
-            (sampled_next_s_bar - jax.lax.stop_gradient(next_s_bar_target)) ** 2
-        )
-        reward_consistency = jnp.mean((reward - reward_predictor(s_bar)) ** 2)
-        l_h = trans_consistency + reward_consistency
-
-        # Eq. (12): lax bisimulation loss over a permuted (shuffled) batch.
-        perm = jax.random.permutation(perm_key, obs.shape[0])
-        s_bar_j = s_bar[perm]
-        a_bar_j = a_bar[perm]
-        reward_j = reward[perm]
-
-        mean_i, log_std_i = transition_model(s_bar, a_bar)
-        mean_j, log_std_j = transition_model(s_bar_j, a_bar_j)
-        w2_dist = w2_gaussian(mean_i, log_std_i, mean_j, log_std_j)
-
-        state_dist = jnp.sum(jnp.abs(s_bar - s_bar_j), axis=-1)
-        reward_dist = config.lax_reward_coef * jnp.abs(reward - reward_j)
-        target_dist = jax.lax.stop_gradient(
-            reward_dist + config.lax_transition_coef * w2_dist
-        )
-        l_lax = jnp.mean((state_dist - target_dist) ** 2)
-
-        return l_lax + l_h, (l_lax, l_h)
-
-    (homo_loss, (lax_loss, l_h)), homo_grads = nnx.value_and_grad(
-        homomorphism_loss_fn, has_aux=True
-    )(models.homomorphism)
-    state.optimizers.homomorphism.update(models.homomorphism, homo_grads)
-
-    # ---- Eq. (10): abstract critic loss, using the (just-updated) map -- #
-    def abstract_critic_loss_fn(abstract_critic):
-        s_bar = jax.lax.stop_gradient(models.homomorphism.state_encoder(obs))
-        a_bar = jax.lax.stop_gradient(models.homomorphism.action_encoder(obs, act))
-        next_s_bar = jax.lax.stop_gradient(models.homomorphism.state_encoder(next_obs))
-        next_a_bar = jax.lax.stop_gradient(
-            models.homomorphism.action_encoder(next_obs, next_act)
-        )
-
-        q1_bar_t, q2_bar_t = models.target_abstract_critic(
-            jnp.concatenate([next_s_bar, next_a_bar], axis=-1)
-        )
-        target_q_bar = reward + config.gamma * discount * jnp.minimum(
-            q1_bar_t, q2_bar_t
-        )
-        target_q_bar = jax.lax.stop_gradient(target_q_bar)
-        q1_bar, q2_bar = abstract_critic(jnp.concatenate([s_bar, a_bar], axis=-1))
-        loss = jnp.mean((q1_bar - target_q_bar) ** 2) + jnp.mean(
-            (q2_bar - target_q_bar) ** 2
-        )
-        return loss, jnp.mean(q1_bar)
-
-    (abstract_critic_loss, q_bar_mean), abs_critic_grads = nnx.value_and_grad(
-        abstract_critic_loss_fn, has_aux=True
-    )(models.abstract_critic)
-    state.optimizers.abstract_critic.update(models.abstract_critic, abs_critic_grads)
-
-    return DHPGAux(
-        actual_critic_loss=actual_critic_loss,
-        abstract_critic_loss=abstract_critic_loss,
-        lax_loss=lax_loss,
-        homomorphism_consistency_loss=l_h,
-        q1_mean=q1_mean,
-        q2_mean=q2_mean,
-        q_bar_mean=q_bar_mean,
+    noise = jnp.clip(
+        stddev * jax.random.normal(noise_key, next_a_bar_clean.shape),
+        -config.stddev_clip,
+        config.stddev_clip,
     )
+    next_a_bar = jax.lax.stop_gradient(jnp.clip(next_a_bar_clean + noise, -1.0, 1.0))
+
+    target_Q_bar = models.target_abstract_critic(
+        jnp.concatenate([next_z, next_a_bar], axis=-1)
+    )
+    target_Q_bar = jax.lax.stop_gradient(reward + discount * target_Q_bar)
+
+    def loss_fn(abstract_critic):
+        current_Q_bar = abstract_critic(jnp.concatenate([z, a_bar], axis=-1))
+        return jnp.mean((current_Q_bar - target_Q_bar) ** 2), current_Q_bar
+
+    (loss, current_Q_bar), grads = nnx.value_and_grad(loss_fn, has_aux=True)(
+        models.abstract_critic
+    )
+    state.optimizers.abstract_critic.update(models.abstract_critic, grads)
+
+    # Value-equivalence diagnostic (paper's own Fig. 15 tool): |Q - Q_bar|,
+    # computed with no gradient, purely for logging.
+    Q = models.bundle.critic(jnp.concatenate([obs, act], axis=-1))
+    value_equivalence = jnp.mean(jnp.abs(jax.lax.stop_gradient(Q) - current_Q_bar))
+
+    return loss, jnp.mean(current_Q_bar), value_equivalence
 
 
 # --------------------------------------------------------------------------- #
-# Actor + target-network update (Eq. 11). Runs every `actor_update_freq` steps.
+# update_actor / update_abstract_actor with hpg_update_type='double_add':
+# actor_loss = DPG(-Q(s,pi(s))) + HPG(-Q_bar(f(s), g(s,pi(s)))), summed and
+# backpropagated in one call. Also runs the target Polyak updates, gated by
+# the SAME `update_every_steps` cadence as the actor update itself.
 # --------------------------------------------------------------------------- #
 def actor_and_target_step(state: DHPGState, data: Transition, config):
     obs = data.observation
@@ -458,26 +598,22 @@ def actor_and_target_step(state: DHPGState, data: Transition, config):
 
     def actor_loss_fn(actor):
         act = actor(obs)
-        q1, q2 = models.critic(jnp.concatenate([obs, act], axis=-1))
-        q_actual = jnp.minimum(q1, q2)
+        q = models.bundle.critic(jnp.concatenate([obs, act], axis=-1))
+        dpg_loss = -jnp.mean(q)
 
-        s_bar = jax.lax.stop_gradient(models.homomorphism.state_encoder(obs))
-        a_bar = models.homomorphism.action_encoder(
+        s_bar = jax.lax.stop_gradient(models.bundle.homomorphism.state_encoder(obs))
+        a_bar = models.bundle.homomorphism.action_encoder(
             obs, act
-        )  # NOT stop-gradient: HPG flows through g
-        q1_bar, q2_bar = models.abstract_critic(
-            jnp.concatenate([s_bar, a_bar], axis=-1)
-        )
-        q_abstract = jnp.minimum(q1_bar, q2_bar)
+        )  # HPG flows through g
+        q_bar = models.abstract_critic(jnp.concatenate([s_bar, a_bar], axis=-1))
+        hpg_loss = -jnp.mean(q_bar)
 
-        # Eq. (11): DPG + HPG gradients summed into a single actor update.
-        loss = -jnp.mean(q_actual + q_abstract)
-        return loss
+        return dpg_loss + hpg_loss
 
     actor_loss, actor_grads = nnx.value_and_grad(actor_loss_fn)(models.actor)
     state.optimizers.actor.update(models.actor, actor_grads)
 
-    polyak_update(models.target_critic, models.critic, config.update_tau)
+    polyak_update(models.target_critic, models.bundle.critic, config.update_tau)
     polyak_update(
         models.target_abstract_critic, models.abstract_critic, config.update_tau
     )
@@ -486,8 +622,15 @@ def actor_and_target_step(state: DHPGState, data: Transition, config):
     return actor_loss
 
 
-def dhpg_train_step(state: DHPGState, data: Transition, config, key, step_in_epoch):
-    critic_aux = critic_and_homomorphism_step(state, data, config, key)
+def dhpg_train_step(state: DHPGState, data: Transition, config, key, step):
+    key, k1, k2 = jax.random.split(key, 3)
+
+    critic_loss, lax_bisim_loss, transition_loss, reward_loss, q_mean, _, stddev = (
+        critic_and_homomorphism_step(state, data, config, step, k1)
+    )
+    abstract_critic_loss, q_bar_mean, value_equivalence = abstract_critic_step(
+        state, data, config, step, k2, stddev
+    )
 
     def do_actor_update(state, data):
         return actor_and_target_step(state, data, config)
@@ -496,29 +639,29 @@ def dhpg_train_step(state: DHPGState, data: Transition, config, key, step_in_epo
         del state, data
         return jnp.array(0.0)
 
-    # NOTE: was `jax.lax.cond`. Plain `jax.lax.cond` traces its branches at a
-    # fresh JAX trace level and has no idea how to split/merge NNX graph
-    # state (Params, Optimizer state, etc). Since `do_actor_update` calls
-    # `nnx.value_and_grad` and mutates optimizers/targets in place, the
-    # params captured by the *outer* trace (from `nnx.fori_loop`) collide
-    # with the *inner* trace created by `jax.lax.cond`, which is exactly the
-    # "Cannot extract graph node from different trace level" error. `nnx.cond`
-    # is a drop-in replacement that wraps `jax.lax.cond` while correctly
-    # threading NNX module/optimizer state through both branches.
     actor_loss = nnx.cond(
-        step_in_epoch % config.actor_update_freq == 0,
+        step % config.update_every_steps == 0,
         do_actor_update,
         skip_actor_update,
         state,
         data,
     )
-    return critic_aux.replace(actor_loss=actor_loss)
+
+    return DHPGAux(
+        critic_loss=critic_loss,
+        abstract_critic_loss=abstract_critic_loss,
+        lax_bisim_loss=lax_bisim_loss,
+        transition_loss=transition_loss,
+        reward_loss=reward_loss,
+        actor_loss=actor_loss,
+        q_mean=q_mean,
+        q_bar_mean=q_bar_mean,
+        value_equivalence=value_equivalence,
+    )
 
 
 # --------------------------------------------------------------------------- #
-# Rollout + train loop (structurally the same shape as your train_n_steps,
-# but the policy used for acting is the noisy deterministic actor and the
-# per-step train call is dhpg_train_step instead of sac_train_step).
+# Rollout + train loop.
 # --------------------------------------------------------------------------- #
 @functools.partial(nnx.jit, static_argnames=("env", "buffer"))
 def train_n_steps(
@@ -549,7 +692,8 @@ def train_n_steps(
 
         key, env_key, act_key = jax.random.split(key, 3)
         stddev = explore_stddev(gstep, config)
-        noisy_policy = ExploratoryActor(state.models.actor, stddev)
+        use_random_action = gstep < config.num_expl_steps
+        noisy_policy = ExploratoryActor(state.models.actor, stddev, use_random_action)
 
         n_env_state, transition = actor_step(
             env,
@@ -663,25 +807,21 @@ def main(args, cfg_env=None):
     jax.default_device = jax.devices(args.device)[args.device_id]
 
     config = dict(default_cfg)
-    config.update(
-        {
-            "gamma": args.gamma,
-            "update_tau": args.update_tau,
-            "lr": args.lr,
-            "max_grad_norm": args.max_grad_norm,
-            "hidden_size": args.hidden_size,
-            "train_per_step": args.train_per_step,
-            "warmup_samples": args.warmup_samples,
-            "max_replay_size": args.max_replay_size,
-            "total_env_steps": args.total_env_steps,
-            "log_freq": args.log_freq,
-            "save_freq": args.save_freq,
-            "episode_length": args.episode_length,
-            "eval_episode_freq": args.eval_episode_freq,
-            "batch_size": args.batch_size,
-            "num_envs": args.num_envs,
-        }
-    )
+    # NOTE: only override with CLI args the user actually intended to change.
+    # Blindly taking every args.* value (as a prior version did) silently
+    # replaces the Table-1-matching defaults above with whatever sac_args()'s
+    # own defaults are, which are tuned for a different (SAC) training
+    # recipe. Pass explicit --lr/--batch-size/etc. on the CLI if you want to
+    # deviate from default_cfg above.
+    explicit_overrides = {
+        k: v for k, v in vars(args).items() if v is not None and k in default_cfg
+    }
+    config.update(explicit_overrides)
+    config["episode_length"] = args.episode_length
+    config["eval_episode_freq"] = args.eval_episode_freq
+    config["log_freq"] = args.log_freq
+    config["save_freq"] = args.save_freq
+    config["num_envs"] = args.num_envs
 
     prng_key, env_key = jax.random.split(prng_key)
     env_key = jax.random.split(env_key, config["num_envs"])
@@ -700,49 +840,55 @@ def main(args, cfg_env=None):
 
     def make_opt(model):
         return nnx.Optimizer(
-            model=model,
-            tx=optax.chain(
-                optax.clip_by_global_norm(config["max_grad_norm"]),
-                optax.adam(learning_rate=config["lr"]),
-            ),
-            wrt=nnx.Param,
+            model=model, tx=optax.adam(learning_rate=config["lr"]), wrt=nnx.Param
         )
+
+    # matching_dims=True assumed - see "OPEN ASSUMPTION" in the module docstring.
+    abstract_state_dim = obs_dim
+    abstract_action_dim = act_dim
 
     actor = DeterministicActor(rngs, obs_dim, act_dim, config["hidden_size"])
     target_actor = deepcopy(actor)
-    critic = EnsembleCritic(
-        rngs, obs_dim=obs_dim, act_dim=act_dim, hidden_size=config["hidden_size"]
-    )
+    critic = SingleQCritic(rngs, obs_dim, act_dim, config["hidden_size"])
     target_critic = deepcopy(critic)
-    # Abstract critic operates on (s_bar, a_bar), which have the same dims as
-    # (s, a) for state observations (Appendix E.2) -> same EnsembleCritic shape.
-    abstract_critic = EnsembleCritic(
-        rngs, obs_dim=obs_dim, act_dim=act_dim, hidden_size=config["hidden_size"]
+    abstract_critic = SingleQCritic(
+        rngs, abstract_state_dim, abstract_action_dim, config["hidden_size"]
     )
     target_abstract_critic = deepcopy(abstract_critic)
 
-    state_encoder = StateEncoder(rngs, obs_dim, config["hidden_size"])
-    action_encoder = ActionEncoder(rngs, obs_dim, act_dim, config["hidden_size"])
-    reward_predictor = RewardPredictor(rngs, obs_dim, config["hidden_size"])
-    transition_model = TransitionModel(rngs, obs_dim, act_dim, config["hidden_size"])
+    state_encoder = StateEncoder(
+        rngs, obs_dim, abstract_state_dim, config["hidden_size"]
+    )
+    action_encoder = ActionEncoder(
+        rngs, obs_dim, act_dim, abstract_action_dim, config["hidden_size"]
+    )
+    reward_predictor = RewardPredictor(rngs, abstract_state_dim, config["hidden_size"])
+    transition_model = TransitionModel(
+        rngs,
+        abstract_state_dim,
+        abstract_action_dim,
+        config["hidden_size"],
+        min_sigma=config["min_sigma"],
+        max_sigma=config["max_sigma"],
+    )
     homomorphism = HomomorphismMap(
         state_encoder, action_encoder, reward_predictor, transition_model
     )
 
+    bundle = CriticHomomorphismBundle(critic=critic, homomorphism=homomorphism)
+
     models = DHPGModels(
         actor=actor,
         target_actor=target_actor,
-        critic=critic,
         target_critic=target_critic,
         abstract_critic=abstract_critic,
         target_abstract_critic=target_abstract_critic,
-        homomorphism=homomorphism,
+        bundle=bundle,
     )
     optimizers = DHPGOptimizers(
         actor=make_opt(actor),
-        critic=make_opt(critic),
+        critic_homomorphism=make_opt(bundle),
         abstract_critic=make_opt(abstract_critic),
-        homomorphism=make_opt(homomorphism),
     )
     state = DHPGState(models=models, optimizers=optimizers)
 
@@ -782,7 +928,7 @@ def main(args, cfg_env=None):
         env=env,
         env_state=env_state,
         buffer_state=buffer_state,
-        policy=ExploratoryActor(actor, config["explore_stddev_start"]),
+        policy=ExploratoryActor(actor, config["explore_stddev_start"], jnp.array(True)),
         buffer=buffer,
         obs_normalizer=obs_normalizer,
         num_itr=config["warmup_samples"],
@@ -820,16 +966,15 @@ def main(args, cfg_env=None):
         steps += num_steps
         logger.logged = False
         logger.log_tabular("Train/Steps", steps)
-        logger.log_tabular("Loss/Actual_critic", aux.actual_critic_loss.item())
+        logger.log_tabular("Loss/Critic", aux.critic_loss.item())
         logger.log_tabular("Loss/Abstract_critic", aux.abstract_critic_loss.item())
-        logger.log_tabular("Loss/Lax_bisimulation", aux.lax_loss.item())
-        logger.log_tabular(
-            "Loss/Homomorphism_consistency", aux.homomorphism_consistency_loss.item()
-        )
+        logger.log_tabular("Loss/Lax_bisimulation", aux.lax_bisim_loss.item())
+        logger.log_tabular("Loss/Transition", aux.transition_loss.item())
+        logger.log_tabular("Loss/Reward", aux.reward_loss.item())
         logger.log_tabular("Loss/Actor", aux.actor_loss.item())
-        logger.log_tabular("Q/Actual_Q1_mean", aux.q1_mean.item())
-        logger.log_tabular("Q/Actual_Q2_mean", aux.q2_mean.item())
+        logger.log_tabular("Q/Actual_Q_mean", aux.q_mean.item())
         logger.log_tabular("Q/Abstract_Q_mean", aux.q_bar_mean.item())
+        logger.log_tabular("Diag/Value_equivalence", aux.value_equivalence.item())
         logger.log_tabular("Norm/actor", get_tree_norm(nnx.state(actor, nnx.Param)))
         logger.log_tabular("Norm/critic", get_tree_norm(nnx.state(critic, nnx.Param)))
         logger.log_tabular(
@@ -870,7 +1015,7 @@ if __name__ == "__main__":
     subfolder = "seed-" + str(args.seed).zfill(3)
     relpath = "-".join([subfolder, relpath])
     algo = "dhpg"
-    args.log_dir = os.path.join(args.log_dir, args.experiment, args.task, algo, relpath)
+    args.log_dir = os.path.join(args.log_dir, args.task, algo, relpath)
 
     if not args.write_terminal:
         os.makedirs(args.log_dir, exist_ok=True)

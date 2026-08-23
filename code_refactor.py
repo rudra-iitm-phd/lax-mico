@@ -14,7 +14,15 @@ from flax import nnx
 from mujoco_playground import registry
 
 from utils.acting import actor_step, wrap_env_for_training
-from utils.buffer import RunningMeanStd, RunningStatistics, UniformSamplingQueue
+from utils.buffer import (
+    RunningMeanStd,
+    RunningStatistics,
+    UniformSamplingQueue,
+    nstep_aggregate,
+    nstep_fifo_init,
+    nstep_fifo_push,
+    nstep_template_from_dims,
+)
 from utils.logger import EpochLogger
 
 # from utils.rep_models import (
@@ -57,6 +65,8 @@ default_cfg = {
     "batch_size": int(256),
     "total_env_steps": int(1e6),
     "init_temperature": 0.1,
+    "nstep": 3,
+    "bootstrap_on_truncation": True,
 }
 
 
@@ -87,9 +97,10 @@ def sac_train_step(
 
     def critic_loss_fn(critic, target_critic):
         q1_t, q2_t = target_critic(jnp.concatenate([next_obs, next_act], axis=-1))
-        backup = reward + config.gamma * discount * (
-            jnp.minimum(q1_t, q2_t) - alpha * next_log_prob
-        )
+        # backup = reward + config.gamma * discount * (
+        #     jnp.minimum(q1_t, q2_t) - alpha * next_log_prob
+        # )
+        backup = reward + discount * (jnp.minimum(q1_t, q2_t) - alpha * next_log_prob)
         backup = jax.lax.stop_gradient(backup)
         q1, q2 = critic(jnp.concatenate([obs, act], axis=-1))
         loss = jnp.mean((q1 - backup) ** 2) + jnp.mean((q2 - backup) ** 2)
@@ -145,11 +156,17 @@ def sac_train_step(
         loss1 = jnp.mean((lambda_sa_xb - lambda_target_1) ** 2) + 0.1 * jnp.mean(
             (1 - lambda_sa_xb) ** 2
         )
+        # loss1 = jnp.mean((lambda_sa_xb - lambda_target_1) ** 2) + 0.1 * jnp.mean(
+        #     jax.nn.relu(lambda_sa_xb - 1) ** 2
+        # )
 
         lambda_target_2 = jax.lax.stop_gradient(jnp.abs(r - y) + discount * g_xs_next)
         loss2 = jnp.mean((lambda_xb_sa - lambda_target_2) ** 2) + 0.1 * jnp.mean(
             (1 - lambda_xb_sa) ** 2
         )
+        # loss2 = jnp.mean((lambda_xb_sa - lambda_target_2) ** 2) + 0.1 * jnp.mean(
+        #     jax.nn.relu(lambda_xb_sa - 1) ** 2
+        # )
 
         lambda_sa_sa1, lambda_sa_sa2 = state_action_metric(
             jnp.concatenate([s, a], axis=-1), jnp.concatenate([s, a], axis=-1)
@@ -352,6 +369,13 @@ def sac_train_step(
             + 0.1 * jnp.mean((1 - jnp.max(g_xs, -1)) ** 2)
             + 0.2 * jnp.mean(jnp.maximum(g_ss1, g_ss2) ** 2)
         )
+        # loss = (
+        #     jnp.mean(p1)
+        #     + jnp.mean(p2)
+        #     + 0.1 * jnp.mean(jax.nn.relu(jnp.max(g_sx, -1) - 1) ** 2)
+        #     + 0.1 * jnp.mean(jax.nn.relu(jnp.max(g_xs, -1) - 1) ** 2)
+        #     + 0.2 * jnp.mean(jnp.maximum(g_ss1, g_ss2) ** 2)
+        # )
 
         return loss
 
@@ -467,13 +491,25 @@ def train_n_steps(
     obs_normalizer,
     state: TrainingState,
     config,
+    nstep_fifo,
+    nstep_count,
     key: jnp.ndarray,
 ):
 
     num_steps = config.log_freq
 
     def body_fun(i, carry):
-        key, env_state, buffer_state, running_state, obs_normalizer, state, val = carry
+        (
+            key,
+            env_state,
+            buffer_state,
+            running_state,
+            obs_normalizer,
+            nstep_fifo,
+            nstep_count,
+            state,
+            val,
+        ) = carry
 
         key, env_key = jax.random.split(key)
         n_env_state, transition = actor_step(
@@ -484,7 +520,19 @@ def train_n_steps(
             env_key,
             extra_fields=("truncation",),
         )
-        buffer_state = buffer.insert(buffer_state, transition)
+        nstep_fifo = nstep_fifo_push(nstep_fifo, transition)
+        nstep_count = jnp.minimum(nstep_count + 1, config.nstep)
+        buffer_state = buffer.insert(
+            buffer_state,
+            nstep_aggregate(
+                nstep_fifo,
+                nstep_count,
+                config.gamma,
+                config.nstep,
+                config.bootstrap_on_truncation,
+            ),
+        )
+        # buffer_state = buffer.insert(buffer_state, transition)
         obs_normalizer = obs_normalizer.update(transition.observation)
         running_state = RunningStatistics.insert_reward(
             running_state, n_env_state.reward
@@ -524,6 +572,8 @@ def train_n_steps(
             buffer_state,
             running_state,
             obs_normalizer,
+            nstep_fifo,
+            nstep_count,
             state,
             val,
         )
@@ -535,15 +585,34 @@ def train_n_steps(
         buffer_state,
         running_state,
         obs_normalizer,
+        nstep_fifo,
+        nstep_count,
         state,
         init_val,
     )
 
-    (_, env_state, buffer_state, running_state, obs_normalizer, state, val) = (
-        nnx.fori_loop(0, num_steps, body_fun, init_carry)
-    )
+    (
+        _,
+        env_state,
+        buffer_state,
+        running_state,
+        obs_normalizer,
+        nstep_fifo,
+        nstep_count,
+        state,
+        val,
+    ) = nnx.fori_loop(0, num_steps, body_fun, init_carry)
 
-    return *val, env_state, running_state, obs_normalizer, buffer_state, num_steps
+    return (
+        *val,
+        env_state,
+        running_state,
+        obs_normalizer,
+        buffer_state,
+        nstep_fifo,
+        nstep_count,
+        num_steps * config.num_envs,
+    )
 
 
 def transfer_tuning(
@@ -558,6 +627,8 @@ def transfer_tuning(
     discount = data.discount
     next_obs = data.next_observation
     jnp.exp(state.models.log_alpha())
+
+    critic_rep_coeff = 0.05
 
     key, next_key = jax.random.split(key)
     next_act, next_log_prob = state.models.actor(next_obs, next_key)
@@ -582,7 +653,7 @@ def transfer_tuning(
     x, b, y, x_next = x[:, None, :], b[:, None, :], y[:, None], x_next[:, None, :]
     g_sx_next, g_xs_next = state.models.target_state_metric(s_next, x_next)
     u_target = jnp.maximum(g_sx_next, g_xs_next)
-    jax.lax.stop_gradient(jnp.abs(r - y) + discount * u_target)
+    lambda_sa_xb_target = jax.lax.stop_gradient(jnp.abs(r - y) + discount * u_target)
 
     key, act_key = jax.random.split(key)
 
@@ -627,28 +698,26 @@ def transfer_tuning(
     )
     state.optimizers.actor.update(state.models.actor, act_rep_grads)
 
-    def critic_rep_loss_fn(critic: EnsembleCritic):
-        lambda_sa_xb, lambda_xb_sa = state.models.state_action_metric(
-            jnp.concatenate([s, a], axis=-1), jnp.concatenate([x, b], axis=-1)
-        )
-        d_sa_xb = jnp.maximum(lambda_sa_xb, lambda_xb_sa)
+    # def critic_rep_loss_fn(critic: EnsembleCritic):
+    #     # lambda_sa_xb, lambda_xb_sa = state.models.state_action_metric(
+    #     #     jnp.concatenate([s, a], axis=-1), jnp.concatenate([x, b], axis=-1)
+    #     # )
+    #     # d_sa_xb = jnp.maximum(lambda_sa_xb, lambda_xb_sa)
 
-        Q_sa1, Q_sa2 = critic(jnp.concatenate([s, a], axis=-1))
-        Q_xb1, Q_xb2 = critic(jnp.concatenate([x, b], axis=-1))
+    #     Q_sa1, Q_sa2 = critic(jnp.concatenate([s, a], axis=-1))
+    #     Q_xb1, Q_xb2 = critic(jnp.concatenate([x, b], axis=-1))
 
-        loss = jnp.mean(
-            jax.nn.relu(jnp.abs(Q_sa1 - Q_xb1) - jax.lax.stop_gradient(d_sa_xb))
-        ) + jnp.mean(
-            jax.nn.relu(jnp.abs(Q_sa2 - Q_xb2) - jax.lax.stop_gradient(d_sa_xb))
-        )
-        return loss
+    #     loss = jnp.mean(
+    #         jax.nn.relu(jnp.abs(Q_sa1 - Q_xb1) - lambda_sa_xb_target)
+    #     ) + jnp.mean(jax.nn.relu(jnp.abs(Q_sa2 - Q_xb2) - lambda_sa_xb_target))
+    #     return critic_rep_coeff * loss
 
-    critic_rep_loss, critic_rep_grads = nnx.value_and_grad(critic_rep_loss_fn)(
-        state.models.critic
-    )
-    state.optimizers.critic.update(state.models.critic, critic_rep_grads)
+    # critic_rep_loss, critic_rep_grads = nnx.value_and_grad(critic_rep_loss_fn)(
+    #     state.models.critic
+    # )
+    # state.optimizers.critic.update(state.models.critic, critic_rep_grads)
 
-    metric_aux = MetricAux(act_rep_loss=act_rep_loss, critic_rep_loss=critic_rep_loss)
+    metric_aux = MetricAux(act_rep_loss=act_rep_loss)
 
     return metric_aux
 
@@ -736,7 +805,10 @@ def prefill_buffer(
     policy,
     buffer,
     obs_normalizer,
+    config,
     num_itr: int,
+    nstep_fifo,
+    nstep_count,
 ):
     """
     Collect `num_itr` transitions before training begins.
@@ -746,7 +818,7 @@ def prefill_buffer(
     """
 
     def body(carry, _):
-        key, env_state, buffer_state, obs_normalizer = carry
+        key, env_state, buffer_state, obs_normalizer, fifo, count = carry
         key, subkey = jax.random.split(key)
         n_state, transition = actor_step(
             env=env,
@@ -756,18 +828,29 @@ def prefill_buffer(
             key=subkey,
             extra_fields=("truncation",),
         )
-        buffer_state = buffer.insert(buffer_state, transition)
+        fifo = nstep_fifo_push(fifo, transition)
+        count = jnp.minimum(count + 1, config.nstep)
+        # buffer_state = buffer.insert(buffer_state, transition)
+        buffer_state = buffer.insert(
+            buffer_state,
+            nstep_aggregate(
+                fifo, count, config.gamma, config.nstep, config.bootstrap_on_truncation
+            ),
+        )
         obs_normalizer = obs_normalizer.update(transition.observation)
-        return (key, n_state, buffer_state, obs_normalizer), ()
+        return (key, n_state, buffer_state, obs_normalizer, fifo, count), ()
 
     jitted_body = jax.jit(body)
-    (_, env_state, buffer_state, obs_normalizer), () = jax.lax.scan(
+    (
+        (_, env_state, buffer_state, obs_normalizer, nstep_fifo, nstep_count),
+        (),
+    ) = jax.lax.scan(
         jitted_body,
-        (key, env_state, buffer_state, obs_normalizer),
+        (key, env_state, buffer_state, obs_normalizer, nstep_fifo, nstep_count),
         (),
         length=num_itr,
     )
-    return env_state, buffer_state, obs_normalizer
+    return env_state, buffer_state, obs_normalizer, nstep_fifo, nstep_count
 
 
 def main(args, cfg_env=None):
@@ -809,6 +892,9 @@ def main(args, cfg_env=None):
             "transfer_steps": args.transfer_steps,
         }
     )
+
+    if args.task.lower().startswith("walker"):
+        config["nstep"] = 1
 
     prng_key, env_key = jax.random.split(prng_key)
     env_key = jax.random.split(env_key, config["num_envs"])
@@ -976,7 +1062,14 @@ def main(args, cfg_env=None):
     logger.log("Start prefilling replay buffer")
     prng_key, buffer_key = jax.random.split(prng_key)
 
-    env_state, buffer_state, obs_normalizer = prefill_buffer(
+    nstep_fifo = nstep_fifo_init(
+        nstep_template_from_dims(config["num_envs"], obs_dim, act_dim),
+        config["nstep"],
+    )
+
+    nstep_count = jnp.array(0, dtype=jnp.int32)
+
+    env_state, buffer_state, obs_normalizer, nstep_fifo, nstep_count = prefill_buffer(
         key=buffer_key,
         env=env,
         env_state=env_state,
@@ -984,7 +1077,10 @@ def main(args, cfg_env=None):
         policy=actor,
         buffer=buffer,
         obs_normalizer=obs_normalizer,
+        config=config_data,
         num_itr=config["warmup_samples"],
+        nstep_fifo=nstep_fifo,
+        nstep_count=nstep_count,
     )
     # ── main training loop ────────────────────────────────────────────────
     logger.log("Start SAC training")
@@ -1002,6 +1098,8 @@ def main(args, cfg_env=None):
             obs_normalizer=obs_normalizer,
             state=state,
             config=config_data,
+            nstep_fifo=nstep_fifo,
+            nstep_count=nstep_count,
             key=subkey,
         )
 
@@ -1012,6 +1110,8 @@ def main(args, cfg_env=None):
             running_state,
             obs_normalizer,
             buffer_state,
+            nstep_fifo,
+            nstep_count,
             num_steps,
         ) = val
 
@@ -1055,7 +1155,7 @@ def main(args, cfg_env=None):
             metric_aux.state_action_to_state_metric_loss.item(),
         )
         logger.log_tabular("Loss/Act_rep_loss", tune_aux.act_rep_loss.item())
-        logger.log_tabular("Loss/Critic_rep_loss", tune_aux.critic_rep_loss.item())
+        # logger.log_tabular("Loss/Critic_rep_loss", tune_aux.critic_rep_loss.item())
         # logger.log_tabular("Loss/Value_Matching_loss", val_match_loss.item())
 
         logger.log_tabular("SAC/Alpha", agent_aux.alpha.item())
@@ -1138,7 +1238,9 @@ def main(args, cfg_env=None):
         logger.dump_tabular()
 
         # ── periodic checkpoint ───────────────────────────────────────────
-        if (steps - config["warmup_samples"]) % config["save_freq"] == 0:
+        if (steps - config["warmup_samples"] * config["num_envs"]) % config[
+            "save_freq"
+        ] == 0:
             logger.nn_model_save(
                 itr=steps, nn_model_saver_element=actor, prefix="actor"
             )
@@ -1163,7 +1265,7 @@ if __name__ == "__main__":
     subfolder = "seed-" + str(args.seed).zfill(3)
     relpath = "-".join([subfolder, relpath])
     algo = os.path.basename(__file__).split(".")[0]  # "sac_single"
-    args.log_dir = os.path.join(args.log_dir, args.experiment, args.task, algo, relpath)
+    args.log_dir = os.path.join(args.log_dir, args.task, algo, relpath)
 
     if not args.write_terminal:
         os.makedirs(args.log_dir, exist_ok=True)

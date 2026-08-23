@@ -1,0 +1,409 @@
+E0823 10:36:58.306880  353234 cuda_executor.cc:1526] Could not get kernel mode driver version: (INVALID_ARGUMENT: Version does not match the format X.Y.Z)
+E0823 10:36:58.315489  353124 cuda_executor.cc:1526] Could not get kernel mode driver version: (INVALID_ARGUMENT: Version does not match the format X.Y.Z)
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/rudra/Documents/rep_lr/code_refactor.py", line 1281, in <module>
+    main(args, cfg_env)
+  File "/home/rudra/Documents/rep_lr/code_refactor.py", line 907, in main
+    env_state = env.reset(env_key)
+                ^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/mujoco_playground/_src/wrapper.py", line 149, in reset
+    state = self.env.reset(key)
+            ^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/brax/envs/wrappers/training.py", line 84, in reset
+    state = self.env.reset(rng)
+            ^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/brax/envs/wrappers/training.py", line 69, in reset
+    return jax.vmap(self.env.reset)(rng)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/traceback_util.py", line 196, in reraise_with_filtered_traceback
+    return fun(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/api.py", line 1214, in vmap_f
+    out_flat, inferred_out_axes = batching.batch(
+                                  ^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/linear_util.py", line 212, in call_wrapped
+    return self.f_transformed(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/interpreters/batching.py", line 338, in _batch_outer
+    outs, out_dim_srcs, trace = f(tag, in_dims, *in_vals)
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/interpreters/batching.py", line 357, in _batch_inner
+    outs = f(*in_tracers)
+           ^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/interpreters/batching.py", line 120, in flatten_fun_for_vmap
+    ans = f(*py_args, **py_kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/mujoco_playground/_src/dm_control_suite/finger.py", line 121, in reset
+    data = mjx.forward(self.mjx_model, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/mujoco/mjx/_src/forward.py", line 63, in wrapper
+    res = fn(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/mujoco/mjx/_src/forward.py", line 440, in forward
+    d = fwd_position(m, d)
+        ^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/mujoco/mjx/_src/forward.py", line 63, in wrapper
+    res = fn(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/mujoco/mjx/_src/forward.py", line 73, in fwd_position
+    d = smooth.kinematics(m, d)
+        ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/mujoco/mjx/_src/smooth.py", line 96, in kinematics
+    qpos, xanchor, xaxis, xpos, xquat, xmat = scan.body_tree(
+                                              ^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/mujoco/mjx/_src/scan.py", line 476, in body_tree
+    f_args = [_take(arg, ids) for arg, ids in zip(args, key_in_take[key])]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/mujoco/mjx/_src/scan.py", line 476, in <listcomp>
+    f_args = [_take(arg, ids) for arg, ids in zip(args, key_in_take[key])]
+              ^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/mujoco/mjx/_src/scan.py", line 65, in _take
+    return jax.tree_util.tree_map(take, obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/tree_util.py", line 397, in tree_map
+    return treedef.unflatten(f(*xs) for xs in zip(*all_leaves))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/tree_util.py", line 397, in <genexpr>
+    return treedef.unflatten(f(*xs) for xs in zip(*all_leaves))
+                             ^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/mujoco/mjx/_src/scan.py", line 60, in take
+    x = x[idx[0] : idx[-1] + 1]
+        ~^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/array.py", line 342, in __getitem__
+    return indexing.rewriting_take(self, idx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/numpy/indexing.py", line 1107, in rewriting_take
+    return _static_slice(arr, static_slice_indexer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/numpy/indexing.py", line 1144, in _static_slice
+    result = slicing.slice(arr, indexer.start_indices,
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/lax/slicing.py", line 113, in slice
+    return slice_p.bind(operand, start_indices=tuple(start_indices),
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/core.py", line 660, in bind
+    return self.bind_with_trace(prev_trace, args, avals, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/core.py", line 668, in bind_with_trace
+    return trace.process_primitive(self, args, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/interpreters/batching.py", line 261, in process_primitive
+    val_out, dim_out = fancy_primitive_batchers[p](
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/interpreters/batching.py", line 599, in wrapped
+    o = prim.bind(*vals, **params)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/core.py", line 660, in bind
+    return self.bind_with_trace(prev_trace, args, avals, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/core.py", line 668, in bind_with_trace
+    return trace.process_primitive(self, args, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/core.py", line 1220, in process_primitive
+    return primitive.impl(*args, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/lax/slicing.py", line 1490, in _slice_impl
+    return dispatch.apply_primitive(dynamic_slice_p, x, *start_indices,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/dispatch.py", line 90, in apply_primitive
+    outs = fun(*args)
+           ^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/traceback_util.py", line 196, in reraise_with_filtered_traceback
+    return fun(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/pjit.py", line 255, in cache_miss
+    executable, pgle_profiler, const_args) = _run_python_pjit(
+                                             ^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/pjit.py", line 140, in _run_python_pjit
+    out_flat, compiled, profiler, const_args = _pjit_call_impl_python(
+                                               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/pjit.py", line 1189, in _pjit_call_impl_python
+    return (compiled.unsafe_call(*computation.const_args, *args),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/profiler.py", line 384, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/interpreters/pxla.py", line 376, in __call__
+    input_bufs = self.in_handler(args)
+                 ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/interpreters/pxla.py", line 273, in __call__
+    return self.handler(input_buffers)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/profiler.py", line 384, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/interpreters/pxla.py", line 122, in shard_args
+    outs = shard_arg_handlers[t](a, s, l, xcs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/interpreters/pxla.py", line 199, in _shard_typed_scalar
+    return _shard_np_array(
+           ^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/interpreters/pxla.py", line 185, in _shard_np_array
+    results.append(batched_device_put(aval, sharding, shards, devices))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rudra/miniconda3/envs/jax_env/lib/python3.11/site-packages/jax/_src/interpreters/pxla.py", line 226, in batched_device_put
+    return xc.batched_device_put(aval, sharding, xs, list(devices), committed,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+E0823 10:37:13.190116  353556 cuda_executor.cc:1526] Could not get kernel mode driver version: (INVALID_ARGUMENT: Version does not match the format X.Y.Z)
+E0823 10:37:13.198661  353447 cuda_executor.cc:1526] Could not get kernel mode driver version: (INVALID_ARGUMENT: Version does not match the format X.Y.Z)
+[32mStart prefilling replay buffer[0m
+[32mStart SAC training[0m
+-----------------------------------------------------------------
+|                                 Train/Steps |        7.68e+05 |
+|                            Loss/Loss_critic |        1.43e-05 |
+|                             Loss/Loss_actor |          -0.355 |
+|                             Loss/Loss_alpha |          0.0051 |
+|               Loss/Loss_state_action_metric |         0.00239 |
+|                      Loss/Loss_state_metric |         0.00182 |
+|             Loss/Loss_state_action_to_state |        1.12e-05 |
+|                           Loss/Act_rep_loss |          -0.765 |
+|                                   SAC/Alpha |         0.00155 |
+|                              SAC/LogPi_mean |           -1.29 |
+|                                 SAC/Q1_mean |           0.353 |
+|                                 SAC/Q2_mean |           0.353 |
+|                            Norm/actor_model |            28.3 |
+|                           Norm/critic_model |              51 |
+|              Norm/state_action_metric_model |            34.9 |
+|                     Norm/state_metric_model |            33.2 |
+|        Norm/state_action_state_metric_model |            34.3 |
+|                  Metric/self_state_distance |         0.00401 |
+|                 Metric/cross_state_distance |           0.921 |
+|           Metric/self_state_action_distance |         0.00454 |
+|          Metric/cross_state_action_distance |           0.908 |
+|             Metric/avg_self_state_asymmetry |               0 |
+|            Metric/avg_cross_state_asymmetry |         0.00274 |
+|                Metric/avg_self_sa_asymmetry |               0 |
+|               Metric/avg_cross_sa_asymmetry |         0.00231 |
+|  Metric/self_state_action_to_state_distance |         0.00285 |
+| Metric/cross_state_action_to_state_distance |           0.907 |
+|                   Metric/h_lambda_diff_self |         0.00196 |
+|                  Metric/h_lambda_diff_cross |         0.00262 |
+|                                 Eval/Return |               0 |
+-----------------------------------------------------------------
+-----------------------------------------------------------------
+|                                 Train/Steps |        8.96e+05 |
+|                            Loss/Loss_critic |          0.0678 |
+|                             Loss/Loss_actor |          -0.408 |
+|                             Loss/Loss_alpha |       -0.000283 |
+|               Loss/Loss_state_action_metric |           0.104 |
+|                      Loss/Loss_state_metric |         0.00173 |
+|             Loss/Loss_state_action_to_state |        0.000112 |
+|                           Loss/Act_rep_loss |          -0.879 |
+|                                   SAC/Alpha |         0.00225 |
+|                              SAC/LogPi_mean |            2.13 |
+|                                 SAC/Q1_mean |           0.382 |
+|                                 SAC/Q2_mean |           0.379 |
+|                            Norm/actor_model |            39.1 |
+|                           Norm/critic_model |            64.8 |
+|              Norm/state_action_metric_model |            40.8 |
+|                     Norm/state_metric_model |            36.3 |
+|        Norm/state_action_state_metric_model |            38.2 |
+|                  Metric/self_state_distance |         0.00239 |
+|                 Metric/cross_state_distance |           0.956 |
+|           Metric/self_state_action_distance |          0.0119 |
+|          Metric/cross_state_action_distance |           0.949 |
+|             Metric/avg_self_state_asymmetry |               0 |
+|            Metric/avg_cross_state_asymmetry |         0.00769 |
+|                Metric/avg_self_sa_asymmetry |               0 |
+|               Metric/avg_cross_sa_asymmetry |         0.00883 |
+|  Metric/self_state_action_to_state_distance |         0.00301 |
+| Metric/cross_state_action_to_state_distance |           0.932 |
+|                   Metric/h_lambda_diff_self |         0.00959 |
+|                  Metric/h_lambda_diff_cross |          0.0179 |
+|                                 Eval/Return |            31.8 |
+-----------------------------------------------------------------
+-----------------------------------------------------------------
+|                                 Train/Steps |        1.02e+06 |
+|                            Loss/Loss_critic |           0.576 |
+|                             Loss/Loss_actor |           -5.36 |
+|                             Loss/Loss_alpha |         0.00239 |
+|               Loss/Loss_state_action_metric |           0.443 |
+|                      Loss/Loss_state_metric |          0.0784 |
+|             Loss/Loss_state_action_to_state |         0.00732 |
+|                           Loss/Act_rep_loss |           -1.48 |
+|                                   SAC/Alpha |          0.0308 |
+|                              SAC/LogPi_mean |            1.92 |
+|                                 SAC/Q1_mean |            5.08 |
+|                                 SAC/Q2_mean |             5.1 |
+|                            Norm/actor_model |            50.5 |
+|                           Norm/critic_model |            81.8 |
+|              Norm/state_action_metric_model |            47.7 |
+|                     Norm/state_metric_model |            42.5 |
+|        Norm/state_action_state_metric_model |            44.4 |
+|                  Metric/self_state_distance |          0.0184 |
+|                 Metric/cross_state_distance |            1.17 |
+|           Metric/self_state_action_distance |          0.0633 |
+|          Metric/cross_state_action_distance |            1.33 |
+|             Metric/avg_self_state_asymmetry |               0 |
+|            Metric/avg_cross_state_asymmetry |          0.0413 |
+|                Metric/avg_self_sa_asymmetry |               0 |
+|               Metric/avg_cross_sa_asymmetry |          0.0578 |
+|  Metric/self_state_action_to_state_distance |          0.0247 |
+| Metric/cross_state_action_to_state_distance |             1.3 |
+|                   Metric/h_lambda_diff_self |          0.0427 |
+|                  Metric/h_lambda_diff_cross |           0.089 |
+|                                 Eval/Return |             407 |
+-----------------------------------------------------------------
+-----------------------------------------------------------------
+|                                 Train/Steps |        1.15e+06 |
+|                            Loss/Loss_critic |             1.2 |
+|                             Loss/Loss_actor |           -14.9 |
+|                             Loss/Loss_alpha |          0.0167 |
+|               Loss/Loss_state_action_metric |           0.643 |
+|                      Loss/Loss_state_metric |           0.215 |
+|             Loss/Loss_state_action_to_state |         0.00787 |
+|                           Loss/Act_rep_loss |           -1.81 |
+|                                   SAC/Alpha |          0.0565 |
+|                              SAC/LogPi_mean |             1.7 |
+|                                 SAC/Q1_mean |            14.6 |
+|                                 SAC/Q2_mean |            14.6 |
+|                            Norm/actor_model |            57.7 |
+|                           Norm/critic_model |            90.8 |
+|              Norm/state_action_metric_model |            52.9 |
+|                     Norm/state_metric_model |            51.2 |
+|        Norm/state_action_state_metric_model |            52.4 |
+|                  Metric/self_state_distance |          0.0203 |
+|                 Metric/cross_state_distance |            1.39 |
+|           Metric/self_state_action_distance |          0.0775 |
+|          Metric/cross_state_action_distance |             1.7 |
+|             Metric/avg_self_state_asymmetry |               0 |
+|            Metric/avg_cross_state_asymmetry |          0.0402 |
+|                Metric/avg_self_sa_asymmetry |               0 |
+|               Metric/avg_cross_sa_asymmetry |           0.059 |
+|  Metric/self_state_action_to_state_distance |          0.0177 |
+| Metric/cross_state_action_to_state_distance |            1.65 |
+|                   Metric/h_lambda_diff_self |          0.0618 |
+|                  Metric/h_lambda_diff_cross |          0.0844 |
+|                                 Eval/Return |             480 |
+-----------------------------------------------------------------
+-----------------------------------------------------------------
+|                                 Train/Steps |        1.28e+06 |
+|                            Loss/Loss_critic |           0.825 |
+|                             Loss/Loss_actor |           -23.5 |
+|                             Loss/Loss_alpha |           0.004 |
+|               Loss/Loss_state_action_metric |            1.05 |
+|                      Loss/Loss_state_metric |           0.378 |
+|             Loss/Loss_state_action_to_state |         0.00908 |
+|                           Loss/Act_rep_loss |           -2.25 |
+|                                   SAC/Alpha |          0.0699 |
+|                              SAC/LogPi_mean |            1.94 |
+|                                 SAC/Q1_mean |            23.1 |
+|                                 SAC/Q2_mean |            23.1 |
+|                            Norm/actor_model |            63.6 |
+|                           Norm/critic_model |              98 |
+|              Norm/state_action_metric_model |            57.9 |
+|                     Norm/state_metric_model |            57.3 |
+|        Norm/state_action_state_metric_model |            57.8 |
+|                  Metric/self_state_distance |         0.00643 |
+|                 Metric/cross_state_distance |            1.67 |
+|           Metric/self_state_action_distance |          0.0389 |
+|          Metric/cross_state_action_distance |            2.22 |
+|             Metric/avg_self_state_asymmetry |               0 |
+|            Metric/avg_cross_state_asymmetry |          0.0429 |
+|                Metric/avg_self_sa_asymmetry |               0 |
+|               Metric/avg_cross_sa_asymmetry |          0.0759 |
+|  Metric/self_state_action_to_state_distance |           0.013 |
+| Metric/cross_state_action_to_state_distance |            2.18 |
+|                   Metric/h_lambda_diff_self |          0.0292 |
+|                  Metric/h_lambda_diff_cross |          0.0918 |
+|                                 Eval/Return |             494 |
+-----------------------------------------------------------------
+-----------------------------------------------------------------
+|                                 Train/Steps |        1.41e+06 |
+|                            Loss/Loss_critic |           0.871 |
+|                             Loss/Loss_actor |           -27.6 |
+|                             Loss/Loss_alpha |         0.00746 |
+|               Loss/Loss_state_action_metric |               1 |
+|                      Loss/Loss_state_metric |           0.451 |
+|             Loss/Loss_state_action_to_state |         0.00359 |
+|                           Loss/Act_rep_loss |           -2.43 |
+|                                   SAC/Alpha |           0.074 |
+|                              SAC/LogPi_mean |             1.9 |
+|                                 SAC/Q1_mean |            27.2 |
+|                                 SAC/Q2_mean |            27.2 |
+|                            Norm/actor_model |              69 |
+|                           Norm/critic_model |             104 |
+|              Norm/state_action_metric_model |            63.2 |
+|                     Norm/state_metric_model |            62.4 |
+|        Norm/state_action_state_metric_model |            62.7 |
+|                  Metric/self_state_distance |           0.019 |
+|                 Metric/cross_state_distance |            1.73 |
+|           Metric/self_state_action_distance |          0.0237 |
+|          Metric/cross_state_action_distance |            2.19 |
+|             Metric/avg_self_state_asymmetry |               0 |
+|            Metric/avg_cross_state_asymmetry |          0.0434 |
+|                Metric/avg_self_sa_asymmetry |               0 |
+|               Metric/avg_cross_sa_asymmetry |          0.0757 |
+|  Metric/self_state_action_to_state_distance |         0.00461 |
+| Metric/cross_state_action_to_state_distance |             2.2 |
+|                   Metric/h_lambda_diff_self |          0.0204 |
+|                  Metric/h_lambda_diff_cross |          0.0797 |
+|                                 Eval/Return |             518 |
+-----------------------------------------------------------------
+-----------------------------------------------------------------
+|                                 Train/Steps |        1.54e+06 |
+|                            Loss/Loss_critic |            1.74 |
+|                             Loss/Loss_actor |           -31.2 |
+|                             Loss/Loss_alpha |         0.00428 |
+|               Loss/Loss_state_action_metric |            1.52 |
+|                      Loss/Loss_state_metric |           0.476 |
+|             Loss/Loss_state_action_to_state |         0.00927 |
+|                           Loss/Act_rep_loss |           -2.71 |
+|                                   SAC/Alpha |          0.0758 |
+|                              SAC/LogPi_mean |            1.94 |
+|                                 SAC/Q1_mean |            30.8 |
+|                                 SAC/Q2_mean |            30.8 |
+|                            Norm/actor_model |            74.1 |
+|                           Norm/critic_model |             110 |
+|              Norm/state_action_metric_model |            68.3 |
+|                     Norm/state_metric_model |            67.7 |
+|        Norm/state_action_state_metric_model |            67.1 |
+|                  Metric/self_state_distance |          0.0102 |
+|                 Metric/cross_state_distance |             1.8 |
+|           Metric/self_state_action_distance |          0.0242 |
+|          Metric/cross_state_action_distance |            2.52 |
+|             Metric/avg_self_state_asymmetry |               0 |
+|            Metric/avg_cross_state_asymmetry |          0.0392 |
+|                Metric/avg_self_sa_asymmetry |               0 |
+|               Metric/avg_cross_sa_asymmetry |          0.0886 |
+|  Metric/self_state_action_to_state_distance |          0.0096 |
+| Metric/cross_state_action_to_state_distance |             2.5 |
+|                   Metric/h_lambda_diff_self |          0.0166 |
+|                  Metric/h_lambda_diff_cross |           0.086 |
+|                                 Eval/Return |             516 |
+-----------------------------------------------------------------
+-----------------------------------------------------------------
+|                                 Train/Steps |        1.66e+06 |
+|                            Loss/Loss_critic |            0.76 |
+|                             Loss/Loss_actor |           -33.7 |
+|                             Loss/Loss_alpha |        -0.00148 |
+|               Loss/Loss_state_action_metric |            1.49 |
+|                      Loss/Loss_state_metric |           0.646 |
+|             Loss/Loss_state_action_to_state |          0.0022 |
+|                           Loss/Act_rep_loss |           -2.69 |
+|                                   SAC/Alpha |          0.0725 |
+|                              SAC/LogPi_mean |            2.02 |
+|                                 SAC/Q1_mean |            33.3 |
+|                                 SAC/Q2_mean |            33.4 |
+|                            Norm/actor_model |            78.8 |
+|                           Norm/critic_model |             115 |
+|              Norm/state_action_metric_model |            73.1 |
+|                     Norm/state_metric_model |            73.3 |
+|        Norm/state_action_state_metric_model |            71.2 |
+|                  Metric/self_state_distance |         0.00418 |
+|                 Metric/cross_state_distance |            1.98 |
+|           Metric/self_state_action_distance |          0.0209 |
+|          Metric/cross_state_action_distance |            2.71 |
+|             Metric/avg_self_state_asymmetry |               0 |
+|            Metric/avg_cross_state_asymmetry |          0.0372 |
+|                Metric/avg_self_sa_asymmetry |               0 |
+|               Metric/avg_cross_sa_asymmetry |          0.0705 |
+|  Metric/self_state_action_to_state_distance |         0.00533 |
+| Metric/cross_state_action_to_state_distance |             2.7 |
+|                   Metric/h_lambda_diff_self |          0.0185 |
+|                  Metric/h_lambda_diff_cross |          0.0751 |
+|                                 Eval/Return |             518 |
+-----------------------------------------------------------------

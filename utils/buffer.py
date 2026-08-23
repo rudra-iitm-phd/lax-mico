@@ -21,6 +21,8 @@ import jax
 import jax.numpy as jnp
 from jax import flatten_util
 
+from utils.types import Transition
+
 State = TypeVar("State")
 Sample = TypeVar("Sample")
 
@@ -153,12 +155,15 @@ class RunningMeanStd:
     var: jnp.ndarray
     count: jnp.ndarray
 
+    STD_MIN: float = flax.struct.field(pytree_node=False, default=1e-6)
+    STD_MAX: float = flax.struct.field(pytree_node=False, default=1e6)
+
     @staticmethod
     def init(shape) -> "RunningMeanStd":
         return RunningMeanStd(
             mean=jnp.zeros(shape, jnp.float32),
             var=jnp.ones(shape, jnp.float32),
-            count=jnp.array(1e-4, jnp.float32),
+            count=jnp.array(0.0, jnp.float32),
         )
 
     def update(self, x: jnp.ndarray) -> "RunningMeanStd":
@@ -178,6 +183,85 @@ class RunningMeanStd:
 
         return self.replace(mean=new_mean, var=new_var, count=tot_count)
 
-    def normalize(self, x: jnp.ndarray, clip: float = 10.0) -> jnp.ndarray:
-        normed = (x - self.mean) / jnp.sqrt(self.var + 1e-8)
-        return jnp.clip(normed, -clip, clip)
+    def std(self) -> jnp.ndarray:
+        return jnp.clip(jnp.sqrt(jnp.maximum(self.var, 0.0)),
+                        self.STD_MIN, self.STD_MAX)
+
+    def normalize(self, x: jnp.ndarray) -> jnp.ndarray:
+        return (x - self.mean)/self.std()
+
+
+def nstep_fifo_init(template: Transition, nstep: int):
+    """Zero-filled FIFO. `template` is one 1-step transition with a leading
+    num_envs dim (see the nstep_template block in either main())."""
+    return jax.tree_util.tree_map(
+        lambda x: jnp.zeros((nstep,) + x.shape, x.dtype), template
+    )
+
+
+def nstep_fifo_push(fifo, transition: Transition):
+    """Drop the oldest entry, append the newest. The astype guards against a
+    dtype mismatch between the template and what actor_step actually returns
+    (e.g. an int32 truncation flag)."""
+    return jax.tree_util.tree_map(
+        lambda buf, x: jnp.concatenate([buf[1:], x.astype(buf.dtype)[None]], axis=0),
+        fifo,
+        transition,
+    )
+
+
+def nstep_aggregate(fifo, count, gamma: float, nstep: int, bootstrap_on_truncation):
+    """Collapse the FIFO into one n-step transition.
+
+    Returns a Transition whose `discount` ALREADY CONTAINS gamma^n - do not
+    multiply by gamma again in the train step.
+    """
+    start = nstep - count  # traced scalar index of the oldest valid entry
+
+    def take(x):
+        return jnp.take(x, start, axis=0)
+
+    reward = jnp.zeros_like(fifo.reward[0])
+    discount = jnp.ones_like(fifo.discount[0])
+    alive = jnp.ones_like(fifo.discount[0])
+    next_obs = fifo.next_observation[nstep - 1]
+
+    for i in range(nstep):  # static unroll; nstep is a compile-time constant
+        valid = (start <= i).astype(reward.dtype)
+        m = valid * alive
+        r_i = fifo.reward[i]
+        d_i = fifo.discount[i]
+        t_i = fifo.extras["state_extras"]["truncation"][i].astype(reward.dtype)
+
+        if bootstrap_on_truncation:
+            d_boot = d_i + (1.0 - d_i) * t_i
+        else:
+            d_boot = d_i
+
+        reward = reward + m * discount * r_i
+        next_obs = jnp.where((m > 0)[..., None], fifo.next_observation[i], next_obs)
+        discount = jnp.where(m > 0, discount * gamma * d_boot, discount)
+        alive = alive * jnp.where(valid > 0, d_i * (1.0 - t_i), 1.0)
+
+    return Transition(
+        observation=take(fifo.observation),
+        action=take(fifo.action),
+        reward=reward,
+        discount=discount,
+        next_observation=next_obs,
+        extras=jax.tree_util.tree_map(take, fifo.extras),
+    )
+
+
+def nstep_template_from_dims(num_envs: int, obs_dim: int, act_dim: int) -> Transition:
+    """Convenience constructor for the FIFO template, so both scripts build it
+    identically. Mirrors the dummy_transition passed to UniformSamplingQueue,
+    but with a leading num_envs dim instead of 1."""
+    return Transition(
+        observation=jnp.zeros((num_envs, obs_dim), jnp.float32),
+        action=jnp.zeros((num_envs, act_dim), jnp.float32),
+        reward=jnp.zeros((num_envs,), jnp.float32),
+        discount=jnp.zeros((num_envs,), jnp.float32),
+        next_observation=jnp.zeros((num_envs, obs_dim), jnp.float32),
+        extras={"state_extras": {"truncation": jnp.zeros((num_envs,), jnp.float32)}},
+    )

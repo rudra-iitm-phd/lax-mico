@@ -1,0 +1,98 @@
+E0823 12:44:58.901656  368541 cuda_executor.cc:1526] Could not get kernel mode driver version: (INVALID_ARGUMENT: Version does not match the format X.Y.Z)
+E0823 12:44:58.910285  368430 cuda_executor.cc:1526] Could not get kernel mode driver version: (INVALID_ARGUMENT: Version does not match the format X.Y.Z)
+[32mStart prefilling replay buffer[0m
+[32mStart SAC training[0m
+-----------------------------------------------------------------
+|                                 Train/Steps |        1.18e+06 |
+|                            Loss/Loss_critic |           0.641 |
+|                             Loss/Loss_actor |           0.768 |
+|                             Loss/Loss_alpha |           0.124 |
+|               Loss/Loss_state_action_metric |           0.201 |
+|                      Loss/Loss_state_metric |             0.2 |
+|             Loss/Loss_state_action_to_state |             0.2 |
+|                           Loss/Act_rep_loss |             nan |
+|                                   SAC/Alpha |          0.0155 |
+|                              SAC/LogPi_mean |              -2 |
+|                                 SAC/Q1_mean |          -0.528 |
+|                                 SAC/Q2_mean |          -0.473 |
+|                            Norm/actor_model |             nan |
+|                           Norm/critic_model |            45.2 |
+|              Norm/state_action_metric_model |            31.9 |
+|                     Norm/state_metric_model |            32.1 |
+|        Norm/state_action_state_metric_model |              32 |
+|                  Metric/self_state_distance |               1 |
+|                 Metric/cross_state_distance |               1 |
+|           Metric/self_state_action_distance |               1 |
+|          Metric/cross_state_action_distance |               1 |
+|             Metric/avg_self_state_asymmetry |               0 |
+|            Metric/avg_cross_state_asymmetry |               0 |
+|                Metric/avg_self_sa_asymmetry |               0 |
+|               Metric/avg_cross_sa_asymmetry |               0 |
+|  Metric/self_state_action_to_state_distance |               1 |
+| Metric/cross_state_action_to_state_distance |               1 |
+|                   Metric/h_lambda_diff_self |               0 |
+|                  Metric/h_lambda_diff_cross |               0 |
+|                                 Eval/Return |               6 |
+-----------------------------------------------------------------
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+-----------------------------------------------------------------
+|                                 Train/Steps |         1.3e+06 |
+|                            Loss/Loss_critic |             nan |
+|                             Loss/Loss_actor |             nan |
+|                             Loss/Loss_alpha |             nan |
+|               Loss/Loss_state_action_metric |             nan |
+|                      Loss/Loss_state_metric |             nan |
+|             Loss/Loss_state_action_to_state |             nan |
+|                           Loss/Act_rep_loss |             nan |
+|                                   SAC/Alpha |             nan |
+|                              SAC/LogPi_mean |             nan |
+|                                 SAC/Q1_mean |             nan |
+|                                 SAC/Q2_mean |             nan |
+|                            Norm/actor_model |             nan |
+|                           Norm/critic_model |             nan |
+|              Norm/state_action_metric_model |             nan |
+|                     Norm/state_metric_model |             nan |
+|        Norm/state_action_state_metric_model |             nan |
+|                  Metric/self_state_distance |             nan |
+|                 Metric/cross_state_distance |             nan |
+|           Metric/self_state_action_distance |             nan |
+|          Metric/cross_state_action_distance |             nan |
+|             Metric/avg_self_state_asymmetry |             nan |
+|            Metric/avg_cross_state_asymmetry |             nan |
+|                Metric/avg_self_sa_asymmetry |             nan |
+|               Metric/avg_cross_sa_asymmetry |             nan |
+|  Metric/self_state_action_to_state_distance |             nan |
+| Metric/cross_state_action_to_state_distance |             nan |
+|                   Metric/h_lambda_diff_self |             nan |
+|                  Metric/h_lambda_diff_cross |             nan |
+|                                 Eval/Return |            1.03 |
+-----------------------------------------------------------------
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.
+WARNING:tensorboardX.x2num:NaN or Inf found in input tensor.

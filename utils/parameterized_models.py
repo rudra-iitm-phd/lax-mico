@@ -1,22 +1,27 @@
 import jax.numpy as jnp
 from flax import nnx, struct
+
+from utils.metric_models import (
+    EnsembleStateActionMetric,
+    EnsembleStateMetric,
+    MinStateActiontoStateMetric,
+)
 from utils.models import EnsembleCritic, SACGaussianActor, Scalar
-from utils.metric_models import EnsembleStateMetric, EnsembleStateActionMetric, MinStateActiontoStateMetric
 
 
 class Models(nnx.Module):
     def __init__(
         self,
-        critic:EnsembleCritic,
-        target_critic:EnsembleCritic,
-        actor:SACGaussianActor,
-        state_metric:EnsembleStateMetric,
-        target_state_metric:EnsembleStateMetric,
-        state_action_metric:EnsembleStateActionMetric,
-        target_state_action_metric:EnsembleStateActionMetric,
-        min_state_action_to_state_metric:MinStateActiontoStateMetric,
-        target_state_action_to_state_metric:MinStateActiontoStateMetric,
-        log_alpha:Scalar,
+        critic: EnsembleCritic,
+        target_critic: EnsembleCritic,
+        actor: SACGaussianActor,
+        state_metric: EnsembleStateMetric,
+        target_state_metric: EnsembleStateMetric,
+        state_action_metric: EnsembleStateActionMetric,
+        target_state_action_metric: EnsembleStateActionMetric,
+        min_state_action_to_state_metric: MinStateActiontoStateMetric,
+        target_state_action_to_state_metric: MinStateActiontoStateMetric,
+        log_alpha: Scalar,
     ):
         self.critic = critic
         self.target_critic = target_critic
@@ -86,13 +91,15 @@ class MetricAux:
     cross_state_distance: float = 0.0
     self_state_action_distance: float = 0.0
     cross_state_action_distance: float = 0.0
-    self_state_action_to_state_distance : float = 0.0
-    cross_state_action_to_state_distance : float = 0.0
+    self_state_action_to_state_distance: float = 0.0
+    cross_state_action_to_state_distance: float = 0.0
     self_state_asymmetry_avg: float = 0.0
     cross_state_asymmetry_avg: float = 0.0
     self_state_action_asymmetry_avg: float = 0.0
     cross_state_action_asymmetry_avg: float = 0.0
-    act_rep_loss: float = 0.0
 
-    h_lambda_diff_self:float = 0.0
-    h_lambda_diff_cross:float=0.0
+    act_rep_loss: float = 0.0
+    critic_rep_loss: float = 0.0
+
+    h_lambda_diff_self: float = 0.0
+    h_lambda_diff_cross: float = 0.0

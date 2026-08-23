@@ -11,7 +11,6 @@ import sys
 import time
 import warnings
 from copy import deepcopy
-from distutils.util import strtobool
 from typing import Any, Generic, Mapping, NamedTuple, Sequence, Tuple, TypeVar, Union
 
 import flax
@@ -21,6 +20,7 @@ import joblib
 import numpy as np
 import optax
 from brax.envs.wrappers import training as brax_training
+from distutils.util import strtobool
 from flax import nnx, struct
 from jax import flatten_util
 from mujoco_playground import registry, wrapper
@@ -85,33 +85,44 @@ def sac_train_step(
     reward = data.reward
     discount = data.discount
     next_obs = data.next_observation
+    truncation = data.extras["state_extras"]["truncation"]
+    key, key_alpha, key_critic, key_actor = jax.random.split(key, 4)
     alpha = jnp.exp(log_alpha())
 
-    key, next_key = jax.random.split(key)
-    next_act, next_log_prob = actor(next_obs, next_key)
+    def alpha_loss_fn(log_alpha):
+        _, log_prob = actor(obs, key_alpha)
+        a = jnp.exp(log_alpha())
+        loss = jnp.mean(
+            a * jax.lax.stop_gradient(-log_prob - config.target_entropy)
+        )
+        return loss
+
+    alpha_loss, alpha_grads = nnx.value_and_grad(alpha_loss_fn)(log_alpha)
+
+    
 
     def critic_loss_fn(critic):
+        next_act, next_log_prob = actor(next_obs, key_critic)
         q1_t, q2_t = target_critic(jnp.concatenate([next_obs, next_act], axis=-1))
-        backup = reward + config.gamma * discount * (
-            jnp.minimum(q1_t, q2_t) - alpha * next_log_prob
+        next_v = jnp.minimum(q1_t, q2_t) - alpha * next_log_prob
+        target_q = jax.lax.stop_gradient(
+            reward * config.reward_scaling + discount * config.gamma * next_v
         )
-        backup = jax.lax.stop_gradient(backup)
+        
         q1, q2 = critic(jnp.concatenate([obs, act], axis=-1))
-        loss = jnp.mean((q1 - backup) ** 2) + jnp.mean((q2 - backup) ** 2)
+
+        q_error = jnp.stack([q1, q2], axis=-1) - target_q[..., None]
+        q_error = q_error * (1.0 - truncation)[..., None]
+        loss = 0.5 * jnp.mean(jnp.square(q_error))
         return loss, (jnp.mean(q1), jnp.mean(q2))
 
     (critic_loss, (q1_mean, q2_mean)), critic_grads = nnx.value_and_grad(
         critic_loss_fn, has_aux=True
     )(critic)
-    # critic_grads = jax.tree_util.tree_map(
-    #     lambda g: jnp.clip(g, -1.0, 1.0), critic_grads
-    # )
-    critic_opt.update(critic, critic_grads)
-
-    key, act_key = jax.random.split(key)
+   
 
     def actor_loss_fn(actor):
-        pi, log_pi = actor(obs, act_key)
+        pi, log_pi = actor(obs, key_actor)
         q1, q2 = critic(jnp.concatenate([obs, pi], axis=-1))
         loss = jnp.mean(alpha * log_pi - jnp.minimum(q1, q2))
         return loss, jnp.mean(log_pi)
@@ -119,22 +130,15 @@ def sac_train_step(
     (actor_loss, log_pi_mean), actor_grads = nnx.value_and_grad(
         actor_loss_fn, has_aux=True
     )(actor)
-    # actor_grads = jax.tree_util.tree_map(lambda g: jnp.clip(g, -1.0, 1.0), actor_grads)
+
+    alpha_opt.update(log_alpha, alpha_grads)
+    critic_opt.update(critic, critic_grads)
     actor_opt.update(actor, actor_grads)
 
-    def alpha_loss_fn(log_alpha):
-        a = jnp.exp(log_alpha())
-        loss = jnp.mean(
-            -a * (jax.lax.stop_gradient(log_pi_mean) + config.target_entropy)
-        )
-        return loss
-
-    alpha_loss, alpha_grads = nnx.value_and_grad(alpha_loss_fn)(log_alpha)
-    alpha_opt.update(log_alpha, alpha_grads)
-
     polyak_update(target_critic, critic, config.update_tau)
+    alpha_post = jnp.exp(log_alpha())
 
-    return critic_loss, actor_loss, alpha_loss, alpha, log_pi_mean, q1_mean, q2_mean
+    return critic_loss, actor_loss, alpha_loss, alpha_post, log_pi_mean, q1_mean, q2_mean
 
 
 @functools.partial(nnx.jit, static_argnames=("env", "buffer"))
@@ -275,133 +279,36 @@ def train_n_steps(
         running_state,
         obs_normalizer,
         buffer_state,
-        num_steps,
+        num_steps * config.num_envs,
     )  # NEW
 
 
-# @functools.partial(nnx.jit, static_argnames=("env", "buffer"))
-# def train_n_steps(
-#     env,
-#     env_state,
-#     buffer_state,
-#     buffer,
-#     running_state,
-#     actor: SACGaussianActor,
-#     actor_opt: nnx.Optimizer,
-#     critic: EnsembleCritic,
-#     critic_opt: nnx.Optimizer,
-#     target_critic: EnsembleCritic,
-#     log_alpha: Scalar,
-#     alpha_opt: nnx.Optimizer,
-#     config,
-#     key: jnp.ndarray,
-# ):
+@functools.partial(nnx.jit, static_argnames=("env", "episode_length", "num_eval_envs", "deterministic"))
+def evaluate(env, actor, obs_normalizer, key, episode_length, num_eval_envs, deterministic:bool=False):
+    key, reset_key = jax.random.split(key)
+    state = env.reset(jax.random.split(reset_key, num_eval_envs))
 
-#     num_steps = config.log_freq
+    def body(carry, _):
+        state, ret, alive, k = carry
+        k, act_key = jax.random.split(k)
+        norm_obs = obs_normalizer.normalize(state.obs)
+        if deterministic:
+            action = actor.mean_action(norm_obs)
+        else:
+            action, _ = actor.sample(norm_obs, act_key)
+        nstate = env.step(state, action)
+        ret = ret + nstate.reward * alive     # count the terminating step
+        alive = alive * (1.0 - nstate.done)   # then stop counting
+        return (nstate, ret, alive, k), ()
 
-#     def body_fun(i, carry):
-#         key, env_state, buffer_state, running_state, models, val = carry
-#         (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt) = (
-#             models
-#         )
-
-#         key, env_key = jax.random.split(key)
-#         n_env_state, transition = actor_step(
-#             env, env_state, actor, env_key, extra_fields=("truncation",)
-#         )
-#         buffer_state = buffer.insert(buffer_state, transition)
-#         running_state = RunningStatistics.insert_reward(
-#             running_state, n_env_state.reward
-#         )
-
-#         def do_train(j, carry):
-#             key, env_state, buffer_state, models, _ = carry
-#             (
-#                 actor,
-#                 actor_opt,
-#                 critic,
-#                 critic_opt,
-#                 target_critic,
-#                 log_alpha,
-#                 alpha_opt,
-#             ) = models
-
-#             buffer_state, batch = buffer.sample(buffer_state)
-#             key, train_key = jax.random.split(key)
-
-#             val = sac_train_step(
-#                 actor,
-#                 actor_opt,
-#                 critic,
-#                 critic_opt,
-#                 target_critic,
-#                 log_alpha,
-#                 alpha_opt,
-#                 batch,
-#                 config,
-#                 train_key,
-#             )
-
-#             models = (
-#                 actor,
-#                 actor_opt,
-#                 critic,
-#                 critic_opt,
-#                 target_critic,
-#                 log_alpha,
-#                 alpha_opt,
-#             )
-
-#             return (key, env_state, buffer_state, models, val)
-
-#         init_val = (jnp.zeros((), jnp.float32),) * 7
-#         models = (
-#             actor,
-#             actor_opt,
-#             critic,
-#             critic_opt,
-#             target_critic,
-#             log_alpha,
-#             alpha_opt,
-#         )
-#         key, _, buffer_state, models, val = nnx.fori_loop(
-#             0,
-#             config.train_per_step,
-#             do_train,
-#             (key, n_env_state, buffer_state, models, init_val),
-#         )
-#         (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt) = (
-#             models
-#         )
-#         return (
-#             key,
-#             n_env_state,
-#             buffer_state,
-#             running_state,
-#             (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt),
-#             val,
-#         )
-
-#     init_val = (jnp.zeros((), jnp.float32),) * 7
-#     init_carry = (
-#         key,
-#         env_state,
-#         buffer_state,
-#         running_state,
-#         (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt),
-#         init_val,
-#     )
-
-#     (_, env_state, buffer_state, running_state, models, val) = nnx.fori_loop(
-#         0, num_steps, body_fun, init_carry
-#     )
-
-#     (actor, actor_opt, critic, critic_opt, target_critic, log_alpha, alpha_opt) = models
-
-#     return *val, env_state, running_state, buffer_state, num_steps
-
-
-""" Copied from claude """
+    (_, ret, _, _), _ = jax.lax.scan(
+        body,
+        (state, jnp.zeros(num_eval_envs), jnp.ones(num_eval_envs), key),
+        (),
+        length=episode_length,
+    )
+    # brax reports both mean and std across the 128 eval envs; report both.
+    return jnp.mean(ret), jnp.std(ret)
 
 
 def prefill_buffer(
@@ -476,6 +383,8 @@ def main(args, cfg_env=None):
             "eval_episode_freq": args.eval_episode_freq,
             "batch_size": args.batch_size,
             "num_envs": args.num_envs,
+            "num_eval_envs": args.num_eval_envs,
+            "reward_scaling":args.reward_scaling
         }
     )
 
@@ -495,7 +404,7 @@ def main(args, cfg_env=None):
 
     # Standard SAC target entropy: −|A|
     # Targets roughly uniform distribution over actions at start.
-    config["target_entropy"] = float(-act_dim)
+    config["target_entropy"] = float(act_dim) * -0.5
 
     # Freeze config into an immutable Flax struct (required for nnx.jit stability)
     config_data = make_static_config_from_dict("SACConfig", config)()
@@ -509,11 +418,12 @@ def main(args, cfg_env=None):
     )
     actor_opt = nnx.Optimizer(
         model=actor,
-        tx=optax.chain(
-            optax.clip_by_global_norm(config["max_grad_norm"]),
-            optax.adam(learning_rate=config["lr"]),
-            # optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
-        ),
+        tx=optax.adam(learning_rate=config["lr"]),
+        # tx=optax.chain(
+        #     optax.clip_by_global_norm(config["max_grad_norm"]),
+        #     optax.adam(learning_rate=config["lr"]),
+        #     # optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
+        # ),
         wrt=nnx.Param,
     )
 
@@ -525,11 +435,12 @@ def main(args, cfg_env=None):
     )
     critic_opt = nnx.Optimizer(
         model=critic,
-        tx=optax.chain(
-            optax.clip_by_global_norm(config["max_grad_norm"]),
-            optax.adam(learning_rate=config["lr"]),
-            # optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
-        ),
+        tx=optax.adam(learning_rate=config["lr"]),
+        # tx=optax.chain(
+        #     optax.clip_by_global_norm(config["max_grad_norm"]),
+        #     optax.adam(learning_rate=config["lr"]),
+        #     # optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
+        # ),
         wrt=nnx.Param,
     )
     target_critic = deepcopy(critic)  # separate copy for Polyak updates
@@ -585,6 +496,7 @@ def main(args, cfg_env=None):
     #     buffer=buffer,
     #     num_itr=config["warmup_samples"],
     # )
+    warmup_iters = max(1, config["warmup_samples"] // config["num_envs"])
     env_state, buffer_state, obs_normalizer = prefill_buffer(  # CHANGED unpack
         key=buffer_key,
         env=env,
@@ -593,12 +505,18 @@ def main(args, cfg_env=None):
         policy=actor,
         buffer=buffer,
         obs_normalizer=obs_normalizer,  # NEW arg
-        num_itr=config["warmup_samples"],
+        num_itr=warmup_iters,
     )
 
     # ── main training loop ────────────────────────────────────────────────
     logger.log("Start SAC training")
+    logger.log(f"{config}")
     steps = buffer.size(buffer_state)
+    steps = int(buffer.size(buffer_state))
+    # eval_interval = config["total_env_steps"] // 10  # num_evals = 10
+    # next_eval = steps + eval_interval
+    next_save = steps + config["save_freq"]
+    # last_eval_return = 0.0
 
     # while steps < config["total_env_steps"]:
     #     prng_key, subkey = jax.random.split(prng_key)
@@ -693,24 +611,50 @@ def main(args, cfg_env=None):
             get_tree_norm(nnx.state(critic, nnx.Param)),
         )
 
-        logger.log_tabular(
-            "Eval/Return",
-            running_state.reward_state.data.sum() / config["eval_episode_freq"],
-        )
+        # logger.log_tabular(
+        #     "Eval/Return",
+        #     running_state.reward_state.data.sum() / config["eval_episode_freq"],
+        # )
+
+        prng_key, eval_key = jax.random.split(prng_key)
+        eval_return, eval_std = evaluate(
+                env=env,
+                actor=actor,
+                obs_normalizer=obs_normalizer,
+                key=eval_key,
+                episode_length=config["episode_length"],
+                num_eval_envs=config["num_eval_envs"],
+                deterministic = True
+            )
+        
+
+        logger.log_tabular("Eval/Return", float(eval_return))
 
         logger.dump_tabular()
 
-        # ── periodic checkpoint ───────────────────────────────────────────
-        if (steps - config["warmup_samples"]) % config["save_freq"] == 0:
+        # # ── periodic checkpoint ───────────────────────────────────────────
+        # if (steps - config["warmup_samples"] * config["num_envs"]) % config[
+        #     "save_freq"
+        # ] == 0:
+        #     logger.nn_model_save(
+        #         itr=steps, nn_model_saver_element=actor, prefix="actor"
+        #     )
+        #     logger.nn_model_save(
+        #         itr=steps, nn_model_saver_element=critic, prefix="critic"
+        #     )
+
+        # if steps >= config["total_env_steps"]:
+        #     break
+
+        if steps >= next_save:
             logger.nn_model_save(
                 itr=steps, nn_model_saver_element=actor, prefix="actor"
             )
             logger.nn_model_save(
                 itr=steps, nn_model_saver_element=critic, prefix="critic"
             )
-
-        if steps >= config["total_env_steps"]:
-            break
+            while next_save <= steps:
+                next_save += config["save_freq"]
 
     # ── final save ────────────────────────────────────────────────────────
     logger.nn_model_save(itr=steps, nn_model_saver_element=actor, prefix="actor")
@@ -726,7 +670,7 @@ if __name__ == "__main__":
     subfolder = "seed-" + str(args.seed).zfill(3)
     relpath = "-".join([subfolder, relpath])
     algo = os.path.basename(__file__).split(".")[0]  # "sac_single"
-    args.log_dir = os.path.join(args.log_dir, args.experiment, args.task, algo, relpath)
+    args.log_dir = os.path.join(args.log_dir, args.task, algo, relpath)
 
     if not args.write_terminal:
         os.makedirs(args.log_dir, exist_ok=True)

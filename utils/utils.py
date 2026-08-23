@@ -46,8 +46,11 @@ def sac_args():
     p.add_argument("--task", type=str, default="HumanoidRun")
     p.add_argument("--episode-length", type=int, default=1000)
     p.add_argument("--num_envs", type=int, default=128)
+    p.add_argument("--num-eval-envs", type=int, default=128)
+    p.add_argument("--nstep", type=int, default=int(3))
+    p.add_argument("--reward_scaling", type = float, default=1.0)
     # logging
-    p.add_argument("--experiment", type=str, default="sac")
+    # p.add_argument("--experiment", type=str, default="sac")
     p.add_argument("--log-dir", type=str, default="logs")
     p.add_argument("--write-terminal", type=lambda x: bool(strtobool(x)), default=True)
     # compute
@@ -56,18 +59,18 @@ def sac_args():
     # replay buffer
     p.add_argument("--batch-size", type=int, default=512)
     p.add_argument("--max-replay-size", type=int, default=int(4e6))
-    p.add_argument("--warmup-samples", type=int, default=int(5e3))
+    p.add_argument("--warmup-samples", type=int, default=int(8192))
     # training schedule
     p.add_argument("--total-env-steps", type=int, default=int(5e6))
     p.add_argument("--log-freq", type=int, default=int(1e3))
-    p.add_argument("--save-freq", type=int, default=int(5e4))
+    p.add_argument("--save-freq", type=int, default=int(1e6))
     p.add_argument("--train-per-step", type=int, default=8)
     # SAC hyperparameters
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--gamma", type=float, default=0.99)
     p.add_argument("--update-tau", type=float, default=0.005)
-    p.add_argument("--init-temperature", type=float, default=0.1)
-    p.add_argument("--max-grad-norm", type=float, default=1.0)
+    p.add_argument("--init-temperature", type=float, default=1.0)
+    p.add_argument("--max-grad-norm", type=float, default=0.0)
     p.add_argument("--hidden-size", type=int, default=256)
     # eval
     p.add_argument("--eval-episode-freq", type=int, default=10)
