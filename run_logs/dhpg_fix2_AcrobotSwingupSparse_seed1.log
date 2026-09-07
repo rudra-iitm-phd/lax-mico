@@ -1,0 +1,728 @@
+E0902 23:17:58.470311   97107 cuda_executor.cc:1526] Could not get kernel mode driver version: (INVALID_ARGUMENT: Version does not match the format X.Y.Z)
+E0902 23:17:58.478833   96997 cuda_executor.cc:1526] Could not get kernel mode driver version: (INVALID_ARGUMENT: Version does not match the format X.Y.Z)
+[32m[harness] num_envs=128 total_env_steps=5000000 batch=512 train_per_step=8 UTD=0.0625 seed=8192 transitions log_every=128000 transitions normalize_obs=True[0m
+[32m[algorithm] lr=0.001 tau=0.005 nstep=3 update_every=2 stddev=linear(1.0,0.1,500000) origin=8192 bootstrap_on_truncation=True matching_dims=True[0m
+[32mStart prefilling replay buffer[0m
+[32mStart DHPG training[0m
+------------------------------------------------
+|                Train/Steps |        1.36e+05 |
+|           Loss/Loss_critic |        3.69e-05 |
+|  Loss/Loss_abstract_critic |          0.0112 |
+| Loss/Loss_lax_bisimulation |           0.384 |
+|       Loss/Loss_transition |           0.561 |
+|           Loss/Loss_reward |         0.00013 |
+|            Loss/Loss_actor |          -0.969 |
+|         DHPG/Q_actual_mean |          0.0141 |
+|       DHPG/Q_abstract_mean |           0.932 |
+|     DHPG/Value_equivalence |           0.922 |
+|           Norm/actor_model |            29.1 |
+|          Norm/critic_model |            34.9 |
+| Norm/abstract_critic_model |            21.4 |
+|   Norm/state_encoder_model |            53.4 |
+|  Norm/action_encoder_model |            31.4 |
+|                Eval/Return |            1.41 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        2.64e+05 |
+|           Loss/Loss_critic |          0.0252 |
+|  Loss/Loss_abstract_critic |          0.0315 |
+| Loss/Loss_lax_bisimulation |           0.324 |
+|       Loss/Loss_transition |           0.389 |
+|           Loss/Loss_reward |          0.0335 |
+|            Loss/Loss_actor |          0.0599 |
+|         DHPG/Q_actual_mean |           0.136 |
+|       DHPG/Q_abstract_mean |          -0.118 |
+|     DHPG/Value_equivalence |           0.474 |
+|           Norm/actor_model |            38.1 |
+|          Norm/critic_model |            42.9 |
+| Norm/abstract_critic_model |            23.7 |
+|   Norm/state_encoder_model |            69.4 |
+|  Norm/action_encoder_model |            37.1 |
+|                Eval/Return |          0.0859 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        3.92e+05 |
+|           Loss/Loss_critic |        0.000105 |
+|  Loss/Loss_abstract_critic |        0.000662 |
+| Loss/Loss_lax_bisimulation |           0.439 |
+|       Loss/Loss_transition |           0.371 |
+|           Loss/Loss_reward |        0.000272 |
+|            Loss/Loss_actor |           -0.19 |
+|         DHPG/Q_actual_mean |          0.0126 |
+|       DHPG/Q_abstract_mean |           0.163 |
+|     DHPG/Value_equivalence |           0.173 |
+|           Norm/actor_model |            43.6 |
+|          Norm/critic_model |            49.3 |
+| Norm/abstract_critic_model |            25.6 |
+|   Norm/state_encoder_model |            84.2 |
+|  Norm/action_encoder_model |            41.5 |
+|                Eval/Return |           0.148 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |         5.2e+05 |
+|           Loss/Loss_critic |         0.00713 |
+|  Loss/Loss_abstract_critic |          0.0159 |
+| Loss/Loss_lax_bisimulation |           0.353 |
+|       Loss/Loss_transition |           0.205 |
+|           Loss/Loss_reward |          0.0165 |
+|            Loss/Loss_actor |          -0.102 |
+|         DHPG/Q_actual_mean |           0.108 |
+|       DHPG/Q_abstract_mean |          0.0953 |
+|     DHPG/Value_equivalence |           0.187 |
+|           Norm/actor_model |            46.8 |
+|          Norm/critic_model |            54.1 |
+| Norm/abstract_critic_model |            27.1 |
+|   Norm/state_encoder_model |            97.2 |
+|  Norm/action_encoder_model |            45.3 |
+|                Eval/Return |               0 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        6.48e+05 |
+|           Loss/Loss_critic |        4.82e-06 |
+|  Loss/Loss_abstract_critic |        0.000152 |
+| Loss/Loss_lax_bisimulation |           0.717 |
+|       Loss/Loss_transition |           0.412 |
+|           Loss/Loss_reward |        0.000322 |
+|            Loss/Loss_actor |          -0.034 |
+|         DHPG/Q_actual_mean |         0.00658 |
+|       DHPG/Q_abstract_mean |          0.0174 |
+|     DHPG/Value_equivalence |           0.045 |
+|           Norm/actor_model |            50.1 |
+|          Norm/critic_model |            57.8 |
+| Norm/abstract_critic_model |            28.4 |
+|   Norm/state_encoder_model |             108 |
+|  Norm/action_encoder_model |            48.8 |
+|                Eval/Return |           0.461 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        7.76e+05 |
+|           Loss/Loss_critic |        3.68e-05 |
+|  Loss/Loss_abstract_critic |        0.000142 |
+| Loss/Loss_lax_bisimulation |           0.293 |
+|       Loss/Loss_transition |           0.341 |
+|           Loss/Loss_reward |        6.91e-05 |
+|            Loss/Loss_actor |         -0.0516 |
+|         DHPG/Q_actual_mean |         0.00753 |
+|       DHPG/Q_abstract_mean |          0.0314 |
+|     DHPG/Value_equivalence |          0.0413 |
+|           Norm/actor_model |            53.9 |
+|          Norm/critic_model |            60.6 |
+| Norm/abstract_critic_model |            30.1 |
+|   Norm/state_encoder_model |             117 |
+|  Norm/action_encoder_model |              52 |
+|                Eval/Return |               0 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        9.04e+05 |
+|           Loss/Loss_critic |         0.00206 |
+|  Loss/Loss_abstract_critic |         0.00052 |
+| Loss/Loss_lax_bisimulation |           0.312 |
+|       Loss/Loss_transition |           0.474 |
+|           Loss/Loss_reward |        0.000144 |
+|            Loss/Loss_actor |          -0.138 |
+|         DHPG/Q_actual_mean |          0.0219 |
+|       DHPG/Q_abstract_mean |          0.0689 |
+|     DHPG/Value_equivalence |          0.0872 |
+|           Norm/actor_model |            57.2 |
+|          Norm/critic_model |            63.2 |
+| Norm/abstract_critic_model |            31.5 |
+|   Norm/state_encoder_model |             127 |
+|  Norm/action_encoder_model |            54.9 |
+|                Eval/Return |               0 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        1.03e+06 |
+|           Loss/Loss_critic |         0.00352 |
+|  Loss/Loss_abstract_critic |          0.0174 |
+| Loss/Loss_lax_bisimulation |           0.316 |
+|       Loss/Loss_transition |           0.356 |
+|           Loss/Loss_reward |          0.0167 |
+|            Loss/Loss_actor |         -0.0871 |
+|         DHPG/Q_actual_mean |          0.0269 |
+|       DHPG/Q_abstract_mean |          0.0754 |
+|     DHPG/Value_equivalence |          0.0927 |
+|           Norm/actor_model |            60.8 |
+|          Norm/critic_model |            65.7 |
+| Norm/abstract_critic_model |            32.7 |
+|   Norm/state_encoder_model |             135 |
+|  Norm/action_encoder_model |            57.9 |
+|                Eval/Return |               0 |
+------------------------------------------------
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+------------------------------------------------
+|                Train/Steps |        1.16e+06 |
+|           Loss/Loss_critic |         0.00126 |
+|  Loss/Loss_abstract_critic |          0.0171 |
+| Loss/Loss_lax_bisimulation |           0.407 |
+|       Loss/Loss_transition |           0.445 |
+|           Loss/Loss_reward |          0.0169 |
+|            Loss/Loss_actor |          -0.131 |
+|         DHPG/Q_actual_mean |          0.0137 |
+|       DHPG/Q_abstract_mean |          0.0859 |
+|     DHPG/Value_equivalence |          0.0912 |
+|           Norm/actor_model |            63.7 |
+|          Norm/critic_model |            67.8 |
+| Norm/abstract_critic_model |              34 |
+|   Norm/state_encoder_model |             144 |
+|  Norm/action_encoder_model |            60.6 |
+|                Eval/Return |            1.55 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        1.29e+06 |
+|           Loss/Loss_critic |         0.00319 |
+|  Loss/Loss_abstract_critic |         0.00102 |
+| Loss/Loss_lax_bisimulation |           0.356 |
+|       Loss/Loss_transition |           0.501 |
+|           Loss/Loss_reward |        0.000229 |
+|            Loss/Loss_actor |          -0.135 |
+|         DHPG/Q_actual_mean |          0.0165 |
+|       DHPG/Q_abstract_mean |          0.0373 |
+|     DHPG/Value_equivalence |          0.0655 |
+|           Norm/actor_model |              66 |
+|          Norm/critic_model |            69.6 |
+| Norm/abstract_critic_model |            35.2 |
+|   Norm/state_encoder_model |             152 |
+|  Norm/action_encoder_model |            63.2 |
+|                Eval/Return |            2.44 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        1.42e+06 |
+|           Loss/Loss_critic |         0.00303 |
+|  Loss/Loss_abstract_critic |          0.0169 |
+| Loss/Loss_lax_bisimulation |           0.391 |
+|       Loss/Loss_transition |           0.559 |
+|           Loss/Loss_reward |           0.017 |
+|            Loss/Loss_actor |         -0.0431 |
+|         DHPG/Q_actual_mean |           0.035 |
+|       DHPG/Q_abstract_mean |          0.0263 |
+|     DHPG/Value_equivalence |          0.0669 |
+|           Norm/actor_model |            68.5 |
+|          Norm/critic_model |            71.5 |
+| Norm/abstract_critic_model |            36.3 |
+|   Norm/state_encoder_model |             159 |
+|  Norm/action_encoder_model |            65.6 |
+|                Eval/Return |           0.109 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        1.54e+06 |
+|           Loss/Loss_critic |        9.06e-05 |
+|  Loss/Loss_abstract_critic |        0.000721 |
+| Loss/Loss_lax_bisimulation |           0.292 |
+|       Loss/Loss_transition |           0.465 |
+|           Loss/Loss_reward |        0.000265 |
+|            Loss/Loss_actor |         -0.0617 |
+|         DHPG/Q_actual_mean |          0.0141 |
+|       DHPG/Q_abstract_mean |          0.0461 |
+|     DHPG/Value_equivalence |          0.0496 |
+|           Norm/actor_model |            70.4 |
+|          Norm/critic_model |            73.1 |
+| Norm/abstract_critic_model |            37.6 |
+|   Norm/state_encoder_model |             166 |
+|  Norm/action_encoder_model |              68 |
+|                Eval/Return |            0.43 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        1.67e+06 |
+|           Loss/Loss_critic |         0.00404 |
+|  Loss/Loss_abstract_critic |         0.00766 |
+| Loss/Loss_lax_bisimulation |           0.433 |
+|       Loss/Loss_transition |           0.495 |
+|           Loss/Loss_reward |         0.00676 |
+|            Loss/Loss_actor |         -0.0539 |
+|         DHPG/Q_actual_mean |          0.0118 |
+|       DHPG/Q_abstract_mean |        -0.00303 |
+|     DHPG/Value_equivalence |          0.0366 |
+|           Norm/actor_model |            72.9 |
+|          Norm/critic_model |            74.6 |
+| Norm/abstract_critic_model |            38.9 |
+|   Norm/state_encoder_model |             173 |
+|  Norm/action_encoder_model |            70.7 |
+|                Eval/Return |           0.398 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |         1.8e+06 |
+|           Loss/Loss_critic |         0.00224 |
+|  Loss/Loss_abstract_critic |          0.0189 |
+| Loss/Loss_lax_bisimulation |           0.313 |
+|       Loss/Loss_transition |           0.429 |
+|           Loss/Loss_reward |          0.0171 |
+|            Loss/Loss_actor |          -0.141 |
+|         DHPG/Q_actual_mean |           0.044 |
+|       DHPG/Q_abstract_mean |          0.0881 |
+|     DHPG/Value_equivalence |           0.125 |
+|           Norm/actor_model |            75.7 |
+|          Norm/critic_model |            75.7 |
+| Norm/abstract_critic_model |            40.5 |
+|   Norm/state_encoder_model |             180 |
+|  Norm/action_encoder_model |            72.8 |
+|                Eval/Return |           0.648 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        1.93e+06 |
+|           Loss/Loss_critic |         0.00269 |
+|  Loss/Loss_abstract_critic |          0.0215 |
+| Loss/Loss_lax_bisimulation |           0.477 |
+|       Loss/Loss_transition |            0.73 |
+|           Loss/Loss_reward |           0.014 |
+|            Loss/Loss_actor |          -0.123 |
+|         DHPG/Q_actual_mean |          0.0425 |
+|       DHPG/Q_abstract_mean |          0.0718 |
+|     DHPG/Value_equivalence |           0.158 |
+|           Norm/actor_model |            77.3 |
+|          Norm/critic_model |            76.7 |
+| Norm/abstract_critic_model |              42 |
+|   Norm/state_encoder_model |             187 |
+|  Norm/action_encoder_model |              75 |
+|                Eval/Return |               0 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        2.06e+06 |
+|           Loss/Loss_critic |         0.00167 |
+|  Loss/Loss_abstract_critic |         0.00673 |
+| Loss/Loss_lax_bisimulation |           0.255 |
+|       Loss/Loss_transition |           0.436 |
+|           Loss/Loss_reward |        0.000673 |
+|            Loss/Loss_actor |         -0.0923 |
+|         DHPG/Q_actual_mean |          0.0129 |
+|       DHPG/Q_abstract_mean |          0.0592 |
+|     DHPG/Value_equivalence |           0.082 |
+|           Norm/actor_model |            78.5 |
+|          Norm/critic_model |            78.2 |
+| Norm/abstract_critic_model |            43.5 |
+|   Norm/state_encoder_model |             193 |
+|  Norm/action_encoder_model |            77.3 |
+|                Eval/Return |             4.2 |
+------------------------------------------------
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+------------------------------------------------
+|                Train/Steps |        2.18e+06 |
+|           Loss/Loss_critic |         0.00934 |
+|  Loss/Loss_abstract_critic |           0.038 |
+| Loss/Loss_lax_bisimulation |           0.512 |
+|       Loss/Loss_transition |            0.64 |
+|           Loss/Loss_reward |          0.0264 |
+|            Loss/Loss_actor |          -0.185 |
+|         DHPG/Q_actual_mean |           0.102 |
+|       DHPG/Q_abstract_mean |            0.19 |
+|     DHPG/Value_equivalence |           0.245 |
+|           Norm/actor_model |            81.1 |
+|          Norm/critic_model |            79.8 |
+| Norm/abstract_critic_model |            44.9 |
+|   Norm/state_encoder_model |             198 |
+|  Norm/action_encoder_model |            79.3 |
+|                Eval/Return |             2.9 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        2.31e+06 |
+|           Loss/Loss_critic |         0.00799 |
+|  Loss/Loss_abstract_critic |         0.00156 |
+| Loss/Loss_lax_bisimulation |            0.37 |
+|       Loss/Loss_transition |           0.579 |
+|           Loss/Loss_reward |        0.000786 |
+|            Loss/Loss_actor |         -0.0424 |
+|         DHPG/Q_actual_mean |          0.0795 |
+|       DHPG/Q_abstract_mean |            0.01 |
+|     DHPG/Value_equivalence |           0.119 |
+|           Norm/actor_model |            82.9 |
+|          Norm/critic_model |            80.9 |
+| Norm/abstract_critic_model |            46.5 |
+|   Norm/state_encoder_model |             204 |
+|  Norm/action_encoder_model |            81.4 |
+|                Eval/Return |           0.258 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        2.44e+06 |
+|           Loss/Loss_critic |          0.0134 |
+|  Loss/Loss_abstract_critic |          0.0209 |
+| Loss/Loss_lax_bisimulation |           0.258 |
+|       Loss/Loss_transition |           0.568 |
+|           Loss/Loss_reward |          0.0195 |
+|            Loss/Loss_actor |          -0.152 |
+|         DHPG/Q_actual_mean |            0.12 |
+|       DHPG/Q_abstract_mean |           0.103 |
+|     DHPG/Value_equivalence |           0.176 |
+|           Norm/actor_model |            84.5 |
+|          Norm/critic_model |            82.5 |
+| Norm/abstract_critic_model |            47.4 |
+|   Norm/state_encoder_model |             209 |
+|  Norm/action_encoder_model |            83.4 |
+|                Eval/Return |            10.1 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        2.57e+06 |
+|           Loss/Loss_critic |          0.0174 |
+|  Loss/Loss_abstract_critic |          0.0514 |
+| Loss/Loss_lax_bisimulation |           0.409 |
+|       Loss/Loss_transition |           0.652 |
+|           Loss/Loss_reward |          0.0108 |
+|            Loss/Loss_actor |          -0.537 |
+|         DHPG/Q_actual_mean |           0.135 |
+|       DHPG/Q_abstract_mean |           0.238 |
+|     DHPG/Value_equivalence |           0.212 |
+|           Norm/actor_model |            87.5 |
+|          Norm/critic_model |            84.1 |
+| Norm/abstract_critic_model |            49.1 |
+|   Norm/state_encoder_model |             213 |
+|  Norm/action_encoder_model |            85.2 |
+|                Eval/Return |            6.72 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |         2.7e+06 |
+|           Loss/Loss_critic |          0.0211 |
+|  Loss/Loss_abstract_critic |          0.0295 |
+| Loss/Loss_lax_bisimulation |           0.347 |
+|       Loss/Loss_transition |           0.679 |
+|           Loss/Loss_reward |          0.0132 |
+|            Loss/Loss_actor |          -0.317 |
+|         DHPG/Q_actual_mean |             0.2 |
+|       DHPG/Q_abstract_mean |           0.304 |
+|     DHPG/Value_equivalence |           0.319 |
+|           Norm/actor_model |            88.2 |
+|          Norm/critic_model |            85.7 |
+| Norm/abstract_critic_model |            50.3 |
+|   Norm/state_encoder_model |             218 |
+|  Norm/action_encoder_model |              87 |
+|                Eval/Return |            3.59 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        2.82e+06 |
+|           Loss/Loss_critic |         0.00567 |
+|  Loss/Loss_abstract_critic |         0.00915 |
+| Loss/Loss_lax_bisimulation |           0.292 |
+|       Loss/Loss_transition |           0.835 |
+|           Loss/Loss_reward |         0.00853 |
+|            Loss/Loss_actor |          -0.379 |
+|         DHPG/Q_actual_mean |           0.272 |
+|       DHPG/Q_abstract_mean |            0.14 |
+|     DHPG/Value_equivalence |           0.331 |
+|           Norm/actor_model |            90.6 |
+|          Norm/critic_model |            87.6 |
+| Norm/abstract_critic_model |            51.9 |
+|   Norm/state_encoder_model |             222 |
+|  Norm/action_encoder_model |            88.5 |
+|                Eval/Return |            8.03 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        2.95e+06 |
+|           Loss/Loss_critic |          0.0134 |
+|  Loss/Loss_abstract_critic |          0.0185 |
+| Loss/Loss_lax_bisimulation |           0.445 |
+|       Loss/Loss_transition |           0.781 |
+|           Loss/Loss_reward |          0.0142 |
+|            Loss/Loss_actor |          -0.331 |
+|         DHPG/Q_actual_mean |           0.264 |
+|       DHPG/Q_abstract_mean |           0.135 |
+|     DHPG/Value_equivalence |           0.291 |
+|           Norm/actor_model |            92.7 |
+|          Norm/critic_model |            89.2 |
+| Norm/abstract_critic_model |            53.1 |
+|   Norm/state_encoder_model |             226 |
+|  Norm/action_encoder_model |            90.1 |
+|                Eval/Return |            10.7 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        3.08e+06 |
+|           Loss/Loss_critic |         0.00522 |
+|  Loss/Loss_abstract_critic |         0.00244 |
+| Loss/Loss_lax_bisimulation |           0.521 |
+|       Loss/Loss_transition |           0.815 |
+|           Loss/Loss_reward |         0.00133 |
+|            Loss/Loss_actor |          -0.246 |
+|         DHPG/Q_actual_mean |           0.199 |
+|       DHPG/Q_abstract_mean |          0.0803 |
+|     DHPG/Value_equivalence |           0.265 |
+|           Norm/actor_model |            93.6 |
+|          Norm/critic_model |            90.6 |
+| Norm/abstract_critic_model |            54.3 |
+|   Norm/state_encoder_model |             230 |
+|  Norm/action_encoder_model |            91.8 |
+|                Eval/Return |            3.97 |
+------------------------------------------------
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+------------------------------------------------
+|                Train/Steps |        3.21e+06 |
+|           Loss/Loss_critic |          0.0078 |
+|  Loss/Loss_abstract_critic |         0.00427 |
+| Loss/Loss_lax_bisimulation |           0.428 |
+|       Loss/Loss_transition |           0.703 |
+|           Loss/Loss_reward |        0.000395 |
+|            Loss/Loss_actor |          -0.273 |
+|         DHPG/Q_actual_mean |           0.207 |
+|       DHPG/Q_abstract_mean |          0.0896 |
+|     DHPG/Value_equivalence |           0.279 |
+|           Norm/actor_model |            94.7 |
+|          Norm/critic_model |            92.4 |
+| Norm/abstract_critic_model |              56 |
+|   Norm/state_encoder_model |             233 |
+|  Norm/action_encoder_model |            93.2 |
+|                Eval/Return |            7.38 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        3.34e+06 |
+|           Loss/Loss_critic |          0.0187 |
+|  Loss/Loss_abstract_critic |          0.0309 |
+| Loss/Loss_lax_bisimulation |           0.363 |
+|       Loss/Loss_transition |           0.838 |
+|           Loss/Loss_reward |          0.0238 |
+|            Loss/Loss_actor |          -0.557 |
+|         DHPG/Q_actual_mean |            0.27 |
+|       DHPG/Q_abstract_mean |            0.27 |
+|     DHPG/Value_equivalence |           0.366 |
+|           Norm/actor_model |            96.1 |
+|          Norm/critic_model |            94.3 |
+| Norm/abstract_critic_model |            57.6 |
+|   Norm/state_encoder_model |             237 |
+|  Norm/action_encoder_model |            94.7 |
+|                Eval/Return |            5.53 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        3.46e+06 |
+|           Loss/Loss_critic |          0.0194 |
+|  Loss/Loss_abstract_critic |          0.0128 |
+| Loss/Loss_lax_bisimulation |           0.322 |
+|       Loss/Loss_transition |           0.668 |
+|           Loss/Loss_reward |         0.00108 |
+|            Loss/Loss_actor |          -0.294 |
+|         DHPG/Q_actual_mean |           0.209 |
+|       DHPG/Q_abstract_mean |          0.0896 |
+|     DHPG/Value_equivalence |            0.29 |
+|           Norm/actor_model |            97.5 |
+|          Norm/critic_model |              96 |
+| Norm/abstract_critic_model |            59.2 |
+|   Norm/state_encoder_model |             240 |
+|  Norm/action_encoder_model |            96.4 |
+|                Eval/Return |            5.48 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        3.59e+06 |
+|           Loss/Loss_critic |         0.00709 |
+|  Loss/Loss_abstract_critic |          0.0171 |
+| Loss/Loss_lax_bisimulation |           0.283 |
+|       Loss/Loss_transition |           0.637 |
+|           Loss/Loss_reward |         0.00986 |
+|            Loss/Loss_actor |          -0.325 |
+|         DHPG/Q_actual_mean |           0.236 |
+|       DHPG/Q_abstract_mean |         -0.0123 |
+|     DHPG/Value_equivalence |           0.296 |
+|           Norm/actor_model |            98.7 |
+|          Norm/critic_model |            97.6 |
+| Norm/abstract_critic_model |            60.9 |
+|   Norm/state_encoder_model |             243 |
+|  Norm/action_encoder_model |            97.8 |
+|                Eval/Return |            3.32 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        3.72e+06 |
+|           Loss/Loss_critic |          0.0265 |
+|  Loss/Loss_abstract_critic |          0.0741 |
+| Loss/Loss_lax_bisimulation |           0.324 |
+|       Loss/Loss_transition |            0.85 |
+|           Loss/Loss_reward |         0.00117 |
+|            Loss/Loss_actor |          -0.821 |
+|         DHPG/Q_actual_mean |           0.331 |
+|       DHPG/Q_abstract_mean |           0.205 |
+|     DHPG/Value_equivalence |           0.561 |
+|           Norm/actor_model |            99.1 |
+|          Norm/critic_model |            99.1 |
+| Norm/abstract_critic_model |            62.9 |
+|   Norm/state_encoder_model |             246 |
+|  Norm/action_encoder_model |            99.1 |
+|                Eval/Return |            5.59 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        3.85e+06 |
+|           Loss/Loss_critic |          0.0407 |
+|  Loss/Loss_abstract_critic |           0.029 |
+| Loss/Loss_lax_bisimulation |             0.3 |
+|       Loss/Loss_transition |           0.784 |
+|           Loss/Loss_reward |         0.00507 |
+|            Loss/Loss_actor |          -0.238 |
+|         DHPG/Q_actual_mean |           0.482 |
+|       DHPG/Q_abstract_mean |          0.0791 |
+|     DHPG/Value_equivalence |           0.491 |
+|           Norm/actor_model |             101 |
+|          Norm/critic_model |             101 |
+| Norm/abstract_critic_model |            64.9 |
+|   Norm/state_encoder_model |             248 |
+|  Norm/action_encoder_model |             101 |
+|                Eval/Return |             5.5 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        3.98e+06 |
+|           Loss/Loss_critic |          0.0126 |
+|  Loss/Loss_abstract_critic |           0.259 |
+| Loss/Loss_lax_bisimulation |           0.467 |
+|       Loss/Loss_transition |           0.812 |
+|           Loss/Loss_reward |          0.0167 |
+|            Loss/Loss_actor |          -0.378 |
+|         DHPG/Q_actual_mean |           0.393 |
+|       DHPG/Q_abstract_mean |           0.329 |
+|     DHPG/Value_equivalence |           0.593 |
+|           Norm/actor_model |             102 |
+|          Norm/critic_model |             102 |
+| Norm/abstract_critic_model |            67.6 |
+|   Norm/state_encoder_model |             251 |
+|  Norm/action_encoder_model |             102 |
+|                Eval/Return |            9.08 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |         4.1e+06 |
+|           Loss/Loss_critic |          0.0854 |
+|  Loss/Loss_abstract_critic |            1.97 |
+| Loss/Loss_lax_bisimulation |            0.52 |
+|       Loss/Loss_transition |           0.841 |
+|           Loss/Loss_reward |          0.0176 |
+|            Loss/Loss_actor |          -0.557 |
+|         DHPG/Q_actual_mean |           0.508 |
+|       DHPG/Q_abstract_mean |           0.794 |
+|     DHPG/Value_equivalence |           0.887 |
+|           Norm/actor_model |             103 |
+|          Norm/critic_model |             103 |
+| Norm/abstract_critic_model |            69.3 |
+|   Norm/state_encoder_model |             253 |
+|  Norm/action_encoder_model |             103 |
+|                Eval/Return |             8.4 |
+------------------------------------------------
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+------------------------------------------------
+|                Train/Steps |        4.23e+06 |
+|           Loss/Loss_critic |          0.0197 |
+|  Loss/Loss_abstract_critic |           0.264 |
+| Loss/Loss_lax_bisimulation |           0.248 |
+|       Loss/Loss_transition |            0.93 |
+|           Loss/Loss_reward |          0.0128 |
+|            Loss/Loss_actor |          -0.558 |
+|         DHPG/Q_actual_mean |           0.341 |
+|       DHPG/Q_abstract_mean |           0.285 |
+|     DHPG/Value_equivalence |           0.502 |
+|           Norm/actor_model |             105 |
+|          Norm/critic_model |             104 |
+| Norm/abstract_critic_model |            71.2 |
+|   Norm/state_encoder_model |             255 |
+|  Norm/action_encoder_model |             104 |
+|                Eval/Return |            6.59 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        4.36e+06 |
+|           Loss/Loss_critic |           0.029 |
+|  Loss/Loss_abstract_critic |          0.0949 |
+| Loss/Loss_lax_bisimulation |           0.581 |
+|       Loss/Loss_transition |            0.96 |
+|           Loss/Loss_reward |          0.0301 |
+|            Loss/Loss_actor |          -0.403 |
+|         DHPG/Q_actual_mean |           0.342 |
+|       DHPG/Q_abstract_mean |         -0.0417 |
+|     DHPG/Value_equivalence |           0.524 |
+|           Norm/actor_model |             107 |
+|          Norm/critic_model |             106 |
+| Norm/abstract_critic_model |            72.8 |
+|   Norm/state_encoder_model |             257 |
+|  Norm/action_encoder_model |             105 |
+|                Eval/Return |            9.62 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        4.49e+06 |
+|           Loss/Loss_critic |          0.0623 |
+|  Loss/Loss_abstract_critic |           0.599 |
+| Loss/Loss_lax_bisimulation |           0.414 |
+|       Loss/Loss_transition |           0.865 |
+|           Loss/Loss_reward |          0.0152 |
+|            Loss/Loss_actor |           -1.86 |
+|         DHPG/Q_actual_mean |           0.522 |
+|       DHPG/Q_abstract_mean |            1.19 |
+|     DHPG/Value_equivalence |            1.05 |
+|           Norm/actor_model |             108 |
+|          Norm/critic_model |             107 |
+| Norm/abstract_critic_model |            74.8 |
+|   Norm/state_encoder_model |             259 |
+|  Norm/action_encoder_model |             107 |
+|                Eval/Return |            7.54 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        4.62e+06 |
+|           Loss/Loss_critic |          0.0107 |
+|  Loss/Loss_abstract_critic |          0.0869 |
+| Loss/Loss_lax_bisimulation |           0.456 |
+|       Loss/Loss_transition |           0.777 |
+|           Loss/Loss_reward |          0.0305 |
+|            Loss/Loss_actor |           -1.09 |
+|         DHPG/Q_actual_mean |           0.427 |
+|       DHPG/Q_abstract_mean |           0.406 |
+|     DHPG/Value_equivalence |           0.594 |
+|           Norm/actor_model |             111 |
+|          Norm/critic_model |             109 |
+| Norm/abstract_critic_model |            75.9 |
+|   Norm/state_encoder_model |             260 |
+|  Norm/action_encoder_model |             108 |
+|                Eval/Return |            3.77 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        4.74e+06 |
+|           Loss/Loss_critic |          0.0174 |
+|  Loss/Loss_abstract_critic |            0.14 |
+| Loss/Loss_lax_bisimulation |           0.341 |
+|       Loss/Loss_transition |           0.935 |
+|           Loss/Loss_reward |         0.00452 |
+|            Loss/Loss_actor |           -1.37 |
+|         DHPG/Q_actual_mean |           0.508 |
+|       DHPG/Q_abstract_mean |           0.775 |
+|     DHPG/Value_equivalence |           0.793 |
+|           Norm/actor_model |             112 |
+|          Norm/critic_model |             110 |
+| Norm/abstract_critic_model |            78.8 |
+|   Norm/state_encoder_model |             262 |
+|  Norm/action_encoder_model |             109 |
+|                Eval/Return |            7.44 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |        4.87e+06 |
+|           Loss/Loss_critic |          0.0218 |
+|  Loss/Loss_abstract_critic |           0.268 |
+| Loss/Loss_lax_bisimulation |           0.368 |
+|       Loss/Loss_transition |           0.893 |
+|           Loss/Loss_reward |          0.0264 |
+|            Loss/Loss_actor |          -0.826 |
+|         DHPG/Q_actual_mean |           0.587 |
+|       DHPG/Q_abstract_mean |           0.644 |
+|     DHPG/Value_equivalence |           0.642 |
+|           Norm/actor_model |             113 |
+|          Norm/critic_model |             112 |
+| Norm/abstract_critic_model |            80.9 |
+|   Norm/state_encoder_model |             263 |
+|  Norm/action_encoder_model |             110 |
+|                Eval/Return |            4.62 |
+------------------------------------------------
+------------------------------------------------
+|                Train/Steps |           5e+06 |
+|           Loss/Loss_critic |          0.0206 |
+|  Loss/Loss_abstract_critic |           0.424 |
+| Loss/Loss_lax_bisimulation |           0.282 |
+|       Loss/Loss_transition |           0.867 |
+|           Loss/Loss_reward |         0.00427 |
+|            Loss/Loss_actor |          -0.872 |
+|         DHPG/Q_actual_mean |           0.595 |
+|       DHPG/Q_abstract_mean |           0.688 |
+|     DHPG/Value_equivalence |           0.675 |
+|           Norm/actor_model |             114 |
+|          Norm/critic_model |             113 |
+| Norm/abstract_critic_model |            82.7 |
+|   Norm/state_encoder_model |             264 |
+|  Norm/action_encoder_model |             111 |
+|                Eval/Return |            5.57 |
+------------------------------------------------
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m

@@ -92,14 +92,10 @@ def sac_train_step(
     def alpha_loss_fn(log_alpha):
         _, log_prob = actor(obs, key_alpha)
         a = jnp.exp(log_alpha())
-        loss = jnp.mean(
-            a * jax.lax.stop_gradient(-log_prob - config.target_entropy)
-        )
+        loss = jnp.mean(a * jax.lax.stop_gradient(-log_prob - config.target_entropy))
         return loss
 
     alpha_loss, alpha_grads = nnx.value_and_grad(alpha_loss_fn)(log_alpha)
-
-    
 
     def critic_loss_fn(critic):
         next_act, next_log_prob = actor(next_obs, key_critic)
@@ -108,7 +104,7 @@ def sac_train_step(
         target_q = jax.lax.stop_gradient(
             reward * config.reward_scaling + discount * config.gamma * next_v
         )
-        
+
         q1, q2 = critic(jnp.concatenate([obs, act], axis=-1))
 
         q_error = jnp.stack([q1, q2], axis=-1) - target_q[..., None]
@@ -119,7 +115,6 @@ def sac_train_step(
     (critic_loss, (q1_mean, q2_mean)), critic_grads = nnx.value_and_grad(
         critic_loss_fn, has_aux=True
     )(critic)
-   
 
     def actor_loss_fn(actor):
         pi, log_pi = actor(obs, key_actor)
@@ -138,7 +133,15 @@ def sac_train_step(
     polyak_update(target_critic, critic, config.update_tau)
     alpha_post = jnp.exp(log_alpha())
 
-    return critic_loss, actor_loss, alpha_loss, alpha_post, log_pi_mean, q1_mean, q2_mean
+    return (
+        critic_loss,
+        actor_loss,
+        alpha_loss,
+        alpha_post,
+        log_pi_mean,
+        q1_mean,
+        q2_mean,
+    )
 
 
 @functools.partial(nnx.jit, static_argnames=("env", "buffer"))
@@ -283,8 +286,18 @@ def train_n_steps(
     )  # NEW
 
 
-@functools.partial(nnx.jit, static_argnames=("env", "episode_length", "num_eval_envs", "deterministic"))
-def evaluate(env, actor, obs_normalizer, key, episode_length, num_eval_envs, deterministic:bool=False):
+@functools.partial(
+    nnx.jit, static_argnames=("env", "episode_length", "num_eval_envs", "deterministic")
+)
+def evaluate(
+    env,
+    actor,
+    obs_normalizer,
+    key,
+    episode_length,
+    num_eval_envs,
+    deterministic: bool = False,
+):
     key, reset_key = jax.random.split(key)
     state = env.reset(jax.random.split(reset_key, num_eval_envs))
 
@@ -297,8 +310,8 @@ def evaluate(env, actor, obs_normalizer, key, episode_length, num_eval_envs, det
         else:
             action, _ = actor.sample(norm_obs, act_key)
         nstate = env.step(state, action)
-        ret = ret + nstate.reward * alive     # count the terminating step
-        alive = alive * (1.0 - nstate.done)   # then stop counting
+        ret = ret + nstate.reward * alive  # count the terminating step
+        alive = alive * (1.0 - nstate.done)  # then stop counting
         return (nstate, ret, alive, k), ()
 
     (_, ret, _, _), _ = jax.lax.scan(
@@ -384,7 +397,7 @@ def main(args, cfg_env=None):
             "batch_size": args.batch_size,
             "num_envs": args.num_envs,
             "num_eval_envs": args.num_eval_envs,
-            "reward_scaling":args.reward_scaling
+            "reward_scaling": args.reward_scaling,
         }
     )
 
@@ -447,7 +460,7 @@ def main(args, cfg_env=None):
 
     log_alpha = Scalar(float(jnp.log(config["init_temperature"])))
     alpha_opt = nnx.Optimizer(
-        model=log_alpha, tx=optax.adam(learning_rate=config["lr"]), wrt=nnx.Param
+        model=log_alpha, tx=optax.adam(learning_rate=3e-4), wrt=nnx.Param
     )
 
     # ── replay buffer ─────────────────────────────────────────────────────
@@ -618,15 +631,14 @@ def main(args, cfg_env=None):
 
         prng_key, eval_key = jax.random.split(prng_key)
         eval_return, eval_std = evaluate(
-                env=env,
-                actor=actor,
-                obs_normalizer=obs_normalizer,
-                key=eval_key,
-                episode_length=config["episode_length"],
-                num_eval_envs=config["num_eval_envs"],
-                deterministic = True
-            )
-        
+            env=env,
+            actor=actor,
+            obs_normalizer=obs_normalizer,
+            key=eval_key,
+            episode_length=config["episode_length"],
+            num_eval_envs=config["num_eval_envs"],
+            deterministic=True,
+        )
 
         logger.log_tabular("Eval/Return", float(eval_return))
 

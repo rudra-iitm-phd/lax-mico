@@ -184,11 +184,161 @@ class RunningMeanStd:
         return self.replace(mean=new_mean, var=new_var, count=tot_count)
 
     def std(self) -> jnp.ndarray:
-        return jnp.clip(jnp.sqrt(jnp.maximum(self.var, 0.0)),
-                        self.STD_MIN, self.STD_MAX)
+        return jnp.clip(
+            jnp.sqrt(jnp.maximum(self.var, 0.0)), self.STD_MIN, self.STD_MAX
+        )
 
     def normalize(self, x: jnp.ndarray) -> jnp.ndarray:
-        return (x - self.mean)/self.std()
+        return (x - self.mean) / self.std()
+
+
+# def nstep_fifo_init(template: Transition, nstep: int):
+#     """Zero-filled FIFO. `template` is one 1-step transition with a leading
+#     num_envs dim (see the nstep_template block in either main())."""
+#     return jax.tree_util.tree_map(
+#         lambda x: jnp.zeros((nstep,) + x.shape, x.dtype), template
+#     )
+
+
+# def nstep_fifo_push(fifo, transition: Transition):
+#     """Drop the oldest entry, append the newest. The astype guards against a
+#     dtype mismatch between the template and what actor_step actually returns
+#     (e.g. an int32 truncation flag)."""
+#     return jax.tree_util.tree_map(
+#         lambda buf, x: jnp.concatenate([buf[1:], x.astype(buf.dtype)[None]], axis=0),
+#         fifo,
+#         transition,
+#     )
+
+
+# def nstep_aggregate(fifo, count, gamma: float, nstep: int, bootstrap_on_truncation):
+#     """Collapse the FIFO into one n-step transition.
+
+#     Returns a Transition whose `discount` ALREADY CONTAINS gamma^n - do not
+#     multiply by gamma again in the train step.
+#     """
+#     start = nstep - count  # traced scalar index of the oldest valid entry
+
+#     def take(x):
+#         return jnp.take(x, start, axis=0)
+
+#     reward = jnp.zeros_like(fifo.reward[0])
+#     discount = jnp.ones_like(fifo.discount[0])
+#     alive = jnp.ones_like(fifo.discount[0])
+#     next_obs = fifo.next_observation[nstep - 1]
+
+#     for i in range(nstep):  # static unroll; nstep is a compile-time constant
+#         valid = (start <= i).astype(reward.dtype)
+#         m = valid * alive
+#         r_i = fifo.reward[i]
+#         d_i = fifo.discount[i]
+#         t_i = fifo.extras["state_extras"]["truncation"][i].astype(reward.dtype)
+
+#         if bootstrap_on_truncation:
+#             d_boot = d_i + (1.0 - d_i) * t_i
+#         else:
+#             d_boot = d_i
+
+#         reward = reward + m * discount * r_i
+#         next_obs = jnp.where((m > 0)[..., None], fifo.next_observation[i], next_obs)
+#         discount = jnp.where(m > 0, discount * gamma * d_boot, discount)
+#         alive = alive * jnp.where(valid > 0, d_i * (1.0 - t_i), 1.0)
+
+#     return Transition(
+#         observation=take(fifo.observation),
+#         action=take(fifo.action),
+#         reward=reward,
+#         discount=discount,
+#         next_observation=next_obs,
+#         extras=jax.tree_util.tree_map(take, fifo.extras),
+#     )
+
+
+# def nstep_template_from_dims(num_envs: int, obs_dim: int, act_dim: int) -> Transition:
+#     """Convenience constructor for the FIFO template, so both scripts build it
+#     identically. Mirrors the dummy_transition passed to UniformSamplingQueue,
+#     but with a leading num_envs dim instead of 1."""
+#     return Transition(
+#         observation=jnp.zeros((num_envs, obs_dim), jnp.float32),
+#         action=jnp.zeros((num_envs, act_dim), jnp.float32),
+#         reward=jnp.zeros((num_envs,), jnp.float32),
+#         discount=jnp.zeros((num_envs,), jnp.float32),
+#         next_observation=jnp.zeros((num_envs, obs_dim), jnp.float32),
+#         extras={"state_extras": {"truncation": jnp.zeros((num_envs,), jnp.float32)}},
+#     )
+
+"""
+Shared n-step return accumulation for the parallel-env harness.
+
+Single source of truth for BOTH sac_single.py and dhpg.py, so the two
+baselines can never drift on how returns are computed.
+
+WHY THIS EXISTS
+---------------
+The DHPG author's replay buffer (utils/replay_buffer.py in
+sahandrez/homomorphic_policy_gradient) is episode-indexed and builds the
+n-step return at SAMPLE time:
+
+    reward = 0; discount = 1
+    for i in range(nstep):
+        reward   += discount * episode['reward'][idx + i]
+        discount *= episode['discount'][idx + i] * gamma
+    return (obs[idx-1], action[idx], reward, discount, obs[idx+nstep-1])
+
+Two things follow, and both are easy to get wrong:
+
+  1. The STORED discount already contains gamma^n. A train step that does
+     `reward + config.gamma * discount * Q` would therefore be applying
+     gamma^(n+1). Consumers of this module must use `discount` RAW.
+
+  2. Because idx is drawn from [0, len - nstep], a window can never straddle
+     an episode boundary.
+
+Our UniformSamplingQueue is a flat circular FIFO with no episode structure,
+so we build the window on the ROLLOUT side instead: push each 1-step
+transition into a FIFO and insert the aggregated n-step transition. The
+buffer needs no changes at all.
+
+TRUNCATION vs TERMINATION
+-------------------------
+utils/acting.py sets `discount = 1 - n_state.done`, and brax's
+EpisodeWrapper raises done=1 at the episode_length time limit as well as at
+true termination. Naively that emits a discount=0 sample every 1000 steps,
+cutting the bootstrap on a purely artificial boundary. DMC tasks never
+actually terminate (the author's time_step.discount is always 1.0), so the
+target should be r + gamma*Q ALWAYS. `truncation` is carried in
+state_extras precisely so this can be undone. Per step:
+
+    bootstrap factor : d_i + (1 - d_i) * t_i   -> 0 only on TRUE termination
+    window continues : d_i * (1 - t_i)         -> stops on done of any kind
+    window truncated : max over included steps of t_i
+
+Note that when the consumer masks truncated transitions out of the TD loss
+(as sac_single.py now does), `bootstrap_on_truncation` no longer affects
+the TD target for those samples - they are dropped entirely. It still
+affects any OTHER use of `discount`, e.g. DHPG's lax-bisimulation target
+`r_dist + discount * transition_dist`, which is not masked.
+
+which reproduces both of the author's properties (always bootstrap, never
+cross a reset) explicitly rather than getting them from buffer structure.
+Set bootstrap_on_truncation=False to recover the old, biased behaviour.
+
+FIFO LAYOUT
+-----------
+Leaves have shape (nstep, num_envs, ...); index 0 is the oldest entry,
+index nstep-1 the newest. `count` is the number of valid entries so far,
+clipped to nstep, so the oldest valid index is `nstep - count`. Early in a
+run the window is simply SHORTER than nstep - never malformed, and never
+contaminated by the zero-fill.
+
+n=1 is an exact no-op: reward = r_t, discount = gamma * d_t, truncation
+= t_t - precisely the raw transition with `config.gamma *` folded in.
+"""
+
+import jax
+import jax.numpy as jnp
+
+from utils.types import Transition
 
 
 def nstep_fifo_init(template: Transition, nstep: int):
@@ -213,8 +363,14 @@ def nstep_fifo_push(fifo, transition: Transition):
 def nstep_aggregate(fifo, count, gamma: float, nstep: int, bootstrap_on_truncation):
     """Collapse the FIFO into one n-step transition.
 
-    Returns a Transition whose `discount` ALREADY CONTAINS gamma^n - do not
-    multiply by gamma again in the train step.
+    `discount` in the result ALREADY CONTAINS gamma^n - do not multiply by
+    gamma again in the train step.
+
+    `extras["state_extras"]["truncation"]` is 1.0 iff the window ended at a
+    time-limit truncation, so consumers can mask it out of the TD loss the
+    way sac_single.py's critic loss does:
+        q_error = q_error * (1.0 - truncation)[..., None]
+    For n=1 this reduces exactly to the raw per-step flag.
     """
     start = nstep - count  # traced scalar index of the oldest valid entry
 
@@ -224,6 +380,7 @@ def nstep_aggregate(fifo, count, gamma: float, nstep: int, bootstrap_on_truncati
     reward = jnp.zeros_like(fifo.reward[0])
     discount = jnp.ones_like(fifo.discount[0])
     alive = jnp.ones_like(fifo.discount[0])
+    truncated = jnp.zeros_like(fifo.discount[0])
     next_obs = fifo.next_observation[nstep - 1]
 
     for i in range(nstep):  # static unroll; nstep is a compile-time constant
@@ -241,6 +398,7 @@ def nstep_aggregate(fifo, count, gamma: float, nstep: int, bootstrap_on_truncati
         reward = reward + m * discount * r_i
         next_obs = jnp.where((m > 0)[..., None], fifo.next_observation[i], next_obs)
         discount = jnp.where(m > 0, discount * gamma * d_boot, discount)
+        truncated = jnp.where(m > 0, jnp.maximum(truncated, t_i), truncated)
         alive = alive * jnp.where(valid > 0, d_i * (1.0 - t_i), 1.0)
 
     return Transition(
@@ -249,7 +407,7 @@ def nstep_aggregate(fifo, count, gamma: float, nstep: int, bootstrap_on_truncati
         reward=reward,
         discount=discount,
         next_observation=next_obs,
-        extras=jax.tree_util.tree_map(take, fifo.extras),
+        extras={"state_extras": {"truncation": truncated}},
     )
 
 

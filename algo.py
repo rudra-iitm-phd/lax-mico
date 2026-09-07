@@ -30,7 +30,7 @@ from utils.metric_models import (
     EnsembleStateMetric,
     MinStateActiontoStateMetric,
 )
-from utils.models import EnsembleCritic, SACGaussianActor, Scalar, get_tree_norm
+from utils.algo_models import EnsembleCritic, SACGaussianActor, Scalar, get_tree_norm
 from utils.parameterized_models import (
     AgentAux,
     MetricAux,
@@ -57,6 +57,7 @@ default_cfg = {
     "batch_size": int(256),
     "total_env_steps": int(1e6),
     "init_temperature": 0.1,
+    "rep_lr_scale":0.5
 }
 
 
@@ -79,32 +80,38 @@ def sac_train_step(
     reward = data.reward
     discount = data.discount
     next_obs = data.next_observation
+    truncation = data.extras["state_extras"]["truncation"]
+    key, key_alpha, key_critic, key_actor = jax.random.split(key, 4)
     alpha = jnp.exp(state.models.log_alpha())
     beta = 1.0
 
-    key, next_key = jax.random.split(key)
-    next_act, next_log_prob = state.models.actor(next_obs, next_key)
+    def alpha_loss_fn(log_alpha):
+        _, log_prob = state.models.actor(obs, key_alpha)
+        a = jnp.exp(log_alpha())
+        loss = jnp.mean(a * jax.lax.stop_gradient(-log_prob - config.target_entropy))
+        return loss
+
+    alpha_loss, alpha_grads = nnx.value_and_grad(alpha_loss_fn)(state.models.log_alpha)
 
     def critic_loss_fn(critic, target_critic):
+        next_act, next_log_prob = state.models.actor(next_obs, key_critic)
         q1_t, q2_t = target_critic(jnp.concatenate([next_obs, next_act], axis=-1))
-        backup = reward + config.gamma * discount * (
-            jnp.minimum(q1_t, q2_t) - alpha * next_log_prob
+        next_v = jnp.minimum(q1_t, q2_t) - alpha * next_log_prob
+        target_q = jax.lax.stop_gradient(
+            reward * config.reward_scaling + discount * config.gamma * next_v
         )
-        backup = jax.lax.stop_gradient(backup)
         q1, q2 = critic(jnp.concatenate([obs, act], axis=-1))
-        loss = jnp.mean((q1 - backup) ** 2) + jnp.mean((q2 - backup) ** 2)
+        q_error = jnp.stack([q1, q2], axis=-1) - target_q[..., None]
+        q_error = q_error * (1.0 - truncation)[..., None]
+        loss = 0.5 * jnp.mean(jnp.square(q_error))
         return loss, (jnp.mean(q1), jnp.mean(q2))
 
     (critic_loss, (q1_mean, q2_mean)), critic_grads = nnx.value_and_grad(
         critic_loss_fn, has_aux=True
     )(state.models.critic, state.models.target_critic)
 
-    state.optimizers.critic.update(state.models.critic, critic_grads)
-
-    key, act_key = jax.random.split(key)
-
     def actor_loss_fn(actor):
-        pi, log_pi = actor(obs, act_key)
+        pi, log_pi = actor(obs, key_actor)
         q1, q2 = state.models.critic(jnp.concatenate([obs, pi], axis=-1))
         loss = jnp.mean(alpha * log_pi - jnp.minimum(q1, q2))
         return loss, jnp.mean(log_pi)
@@ -113,6 +120,8 @@ def sac_train_step(
         actor_loss_fn, has_aux=True
     )(state.models.actor)
 
+    state.optimizers.log_alpha.update(state.models.log_alpha, alpha_grads)
+    state.optimizers.critic.update(state.models.critic, critic_grads)
     state.optimizers.actor.update(state.models.actor, actor_grads)
 
     s, a, r, s_next = obs, act, reward[:, None], next_obs
@@ -360,16 +369,6 @@ def sac_train_step(
     )
     state.optimizers.state_metric.update(state.models.state_metric, g_grads)
 
-    def alpha_loss_fn(log_alpha):
-        a = jnp.exp(log_alpha())
-        loss = jnp.mean(
-            -a * (jax.lax.stop_gradient(log_pi_mean) + config.target_entropy)
-        )
-        return loss
-
-    alpha_loss, alpha_grads = nnx.value_and_grad(alpha_loss_fn)(state.models.log_alpha)
-    state.optimizers.log_alpha.update(state.models.log_alpha, alpha_grads)
-
     g_ss1, g_ss2 = state.models.state_metric(s, s)
     avg_self_state_asymmetry = jnp.mean(jnp.abs(g_ss1 - g_ss2))
     self_state_diff = jnp.mean(jnp.maximum(g_ss1, g_ss2))
@@ -407,7 +406,6 @@ def sac_train_step(
         jnp.abs(lambda_cross - cross_state_action_to_state_distance)
     )
 
-    polyak_update(state.models.target_critic, state.models.critic, config.update_tau)
     polyak_update(
         state.models.target_state_metric, state.models.state_metric, config.update_tau
     )
@@ -421,6 +419,9 @@ def sac_train_step(
         state.models.state_action_metric,
         config.update_tau,
     )
+    polyak_update(state.models.target_critic, state.models.critic, config.update_tau)
+
+    alpha = jnp.exp(state.models.log_alpha())
 
     agent_aux = AgentAux(
         critic_loss=critic_loss,
@@ -627,7 +628,7 @@ def transfer_tuning(
             - jax.lax.stop_gradient(jnp.abs(u)) * d
         )
 
-        return 0.1 * loss
+        return loss
 
     act_rep_loss, act_rep_grads = nnx.value_and_grad(act_match_loss_fn)(
         state.models.actor
@@ -735,6 +736,44 @@ def tune_n_steps(
     return val, env_state, running_state, obs_normalizer, buffer_state, num_steps
 
 
+@functools.partial(
+    nnx.jit, static_argnames=("env", "episode_length", "num_eval_envs", "deterministic")
+)
+def evaluate(
+    env,
+    actor,
+    obs_normalizer,
+    key,
+    episode_length,
+    num_eval_envs,
+    deterministic: bool = False,
+):
+    key, reset_key = jax.random.split(key)
+    state = env.reset(jax.random.split(reset_key, num_eval_envs))
+
+    def body(carry, _):
+        state, ret, alive, k = carry
+        k, act_key = jax.random.split(k)
+        norm_obs = obs_normalizer.normalize(state.obs)
+        if deterministic:
+            action = actor.mean_action(norm_obs)
+        else:
+            action, _ = actor.sample(norm_obs, act_key)
+        nstate = env.step(state, action)
+        ret = ret + nstate.reward * alive  # count the terminating step
+        alive = alive * (1.0 - nstate.done)  # then stop counting
+        return (nstate, ret, alive, k), ()
+
+    (_, ret, _, _), _ = jax.lax.scan(
+        body,
+        (state, jnp.zeros(num_eval_envs), jnp.ones(num_eval_envs), key),
+        (),
+        length=episode_length,
+    )
+    # brax reports both mean and std across the 128 eval envs; report both.
+    return jnp.mean(ret), jnp.std(ret)
+
+
 def prefill_buffer(
     key,
     env,
@@ -814,6 +853,8 @@ def main(args, cfg_env=None):
             "grad_steps": args.grad_steps,
             "transfer_freq": args.transfer_freq,
             "transfer_steps": args.transfer_steps,
+            "reward_scaling": args.reward_scaling,
+            "num_eval_envs": args.num_eval_envs,
         }
     )
 
@@ -830,7 +871,7 @@ def main(args, cfg_env=None):
     act_dim = env.action_size
     obs_normalizer = RunningMeanStd.init((obs_dim,))
 
-    config["target_entropy"] = float(-act_dim)
+    config["target_entropy"] = float(act_dim) * -0.5
 
     config_data = make_static_config_from_dict("SACConfig", config)()
 
@@ -840,11 +881,12 @@ def main(args, cfg_env=None):
 
     state_metric_opt = nnx.Optimizer(
         model=state_metric,
-        tx=optax.chain(
-            optax.clip_by_global_norm(config["max_grad_norm"]),
-            optax.adam(learning_rate=config["lr"]),
-            # optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
-        ),
+        tx=optax.adam(learning_rate=config["lr"]),
+        # tx=optax.chain(
+        #     optax.clip_by_global_norm(config["max_grad_norm"]),
+        #     optax.adam(learning_rate=config["lr"]),
+        #     # optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
+        # ),
         wrt=nnx.Param,
     )
 
@@ -854,11 +896,12 @@ def main(args, cfg_env=None):
 
     state_action_metric_opt = nnx.Optimizer(
         model=state_action_metric,
-        tx=optax.chain(
-            optax.clip_by_global_norm(config["max_grad_norm"]),
-            optax.adam(learning_rate=config["lr"]),
-            # optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
-        ),
+        tx=optax.adam(learning_rate=config["lr"]),
+        # tx=optax.chain(
+        #     optax.clip_by_global_norm(config["max_grad_norm"]),
+        #     optax.adam(learning_rate=config["lr"]),
+        #     # optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
+        # ),
         wrt=nnx.Param,
     )
 
@@ -871,11 +914,12 @@ def main(args, cfg_env=None):
 
     min_state_action_to_state_metric_opt = nnx.Optimizer(
         model=min_state_action_to_state_metric,
-        tx=optax.chain(
-            optax.clip_by_global_norm(config["max_grad_norm"]),
-            optax.adam(learning_rate=config["lr"]),
-            # optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
-        ),
+        tx=optax.adam(learning_rate=config["lr"]),
+        # tx=optax.chain(
+        #     optax.clip_by_global_norm(config["max_grad_norm"]),
+        #     optax.adam(learning_rate=config["lr"]),
+        #     # optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
+        # ),
         wrt=nnx.Param,
     )
 
@@ -890,11 +934,12 @@ def main(args, cfg_env=None):
 
     actor_opt = nnx.Optimizer(
         model=actor,
-        tx=optax.chain(
-            optax.clip_by_global_norm(config["max_grad_norm"]),
-            optax.adam(learning_rate=config["lr"]),
-            # optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
-        ),
+        tx=optax.adam(learning_rate=config["lr"]),
+        # tx=optax.chain(
+        #     optax.clip_by_global_norm(config["max_grad_norm"]),
+        #     optax.adam(learning_rate=config["lr"]),
+        #     # optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
+        # ),
         wrt=nnx.Param,
     )
 
@@ -904,11 +949,12 @@ def main(args, cfg_env=None):
 
     critic_opt = nnx.Optimizer(
         model=critic,
-        tx=optax.chain(
-            optax.clip_by_global_norm(config["max_grad_norm"]),
-            optax.adam(learning_rate=config["lr"]),
-            # optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
-        ),
+        tx=optax.adam(learning_rate=config["lr"]),
+        # tx=optax.chain(
+        #     optax.clip_by_global_norm(config["max_grad_norm"]),
+        #     optax.adam(learning_rate=config["lr"]),
+        #     # optax.adamw(learning_rate=config["lr"], weight_decay=0.01),
+        # ),
         wrt=nnx.Param,
     )
 
@@ -920,6 +966,8 @@ def main(args, cfg_env=None):
         tx=optax.adam(learning_rate=config["lr"]),
         wrt=nnx.Param,
     )
+
+    
 
     models = Models(
         critic=critic,
@@ -941,6 +989,7 @@ def main(args, cfg_env=None):
         state_metric=state_metric_opt,
         state_action_metric=state_action_metric_opt,
         min_state_action_to_state_metric=min_state_action_to_state_metric_opt,
+        
     )
 
     state = TrainingState(models=models, optimizers=optimizers)
@@ -983,6 +1032,7 @@ def main(args, cfg_env=None):
     logger.log("Start prefilling replay buffer")
     prng_key, buffer_key = jax.random.split(prng_key)
 
+    warmup_iters = max(1, config["warmup_samples"] // config["num_envs"])
     env_state, buffer_state, obs_normalizer = prefill_buffer(
         key=buffer_key,
         env=env,
@@ -991,11 +1041,14 @@ def main(args, cfg_env=None):
         policy=actor,
         buffer=buffer,
         obs_normalizer=obs_normalizer,
-        num_itr=config["warmup_samples"],
+        num_itr=warmup_iters,
     )
     # ── main training loop ────────────────────────────────────────────────
     logger.log("Start SAC training")
+    logger.log(f"{config}")
     steps = buffer.size(buffer_state)
+    steps = int(buffer.size(buffer_state))
+    next_save = steps + config["save_freq"]
 
     while steps < config["total_env_steps"]:
         prng_key, subkey = jax.random.split(prng_key)
@@ -1137,26 +1190,33 @@ def main(args, cfg_env=None):
             "Metric/h_lambda_diff_cross", metric_aux.h_lambda_diff_cross.item()
         )
 
+        prng_key, eval_key = jax.random.split(prng_key)
+        eval_return, eval_std = evaluate(
+            env=env,
+            actor=actor,
+            obs_normalizer=obs_normalizer,
+            key=eval_key,
+            episode_length=config["episode_length"],
+            num_eval_envs=config["num_eval_envs"],
+            deterministic=True,
+        )
+
         logger.log_tabular(
             "Eval/Return",
-            running_state.reward_state.data.sum() / config["eval_episode_freq"],
+            float(eval_return),
         )
 
         logger.dump_tabular()
 
-        # ── periodic checkpoint ───────────────────────────────────────────
-        if (steps - config["warmup_samples"] * config["num_envs"]) % config[
-            "save_freq"
-        ] == 0:
+        if steps >= next_save:
             logger.nn_model_save(
                 itr=steps, nn_model_saver_element=actor, prefix="actor"
             )
             logger.nn_model_save(
                 itr=steps, nn_model_saver_element=critic, prefix="critic"
             )
-
-        if steps >= config["total_env_steps"]:
-            break
+            while next_save <= steps:
+                next_save += config["save_freq"]
 
     # ── final save ────────────────────────────────────────────────────────
     logger.nn_model_save(itr=steps, nn_model_saver_element=actor, prefix="actor")

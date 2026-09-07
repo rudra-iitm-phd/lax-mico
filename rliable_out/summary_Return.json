@@ -1,0 +1,97 @@
+{
+  "aggregate": [
+    {
+      "algorithm": "dhpg_fix2",
+      "label": "DHPG",
+      "metric": "Median",
+      "point": 0.8818017374674478,
+      "ci_low": 0.8611391255696614,
+      "ci_high": 0.9036238216145834
+    },
+    {
+      "algorithm": "dhpg_fix2",
+      "label": "DHPG",
+      "metric": "IQM",
+      "point": 0.8641892386696557,
+      "ci_low": 0.8275549207513982,
+      "ci_high": 0.8854408667408337
+    },
+    {
+      "algorithm": "dhpg_fix2",
+      "label": "DHPG",
+      "metric": "Mean",
+      "point": 0.7618737112136114,
+      "ci_low": 0.7243262021418979,
+      "ci_high": 0.8052058070409865
+    },
+    {
+      "algorithm": "dhpg_fix2",
+      "label": "DHPG",
+      "metric": "Optimality Gap",
+      "point": 0.23812628878638853,
+      "ci_low": 0.1947941929590135,
+      "ci_high": 0.27567379785810187
+    },
+    {
+      "algorithm": "algo3",
+      "label": "Ours",
+      "metric": "Median",
+      "point": 0.8717487447102864,
+      "ci_low": 0.8566273119608561,
+      "ci_high": 0.9131626688639323
+    },
+    {
+      "algorithm": "algo3",
+      "label": "Ours",
+      "metric": "IQM",
+      "point": 0.8767743907581678,
+      "ci_low": 0.8490495027021928,
+      "ci_high": 0.8996518031311035
+    },
+    {
+      "algorithm": "algo3",
+      "label": "Ours",
+      "metric": "Mean",
+      "point": 0.793639335850307,
+      "ci_low": 0.7741278494625999,
+      "ci_high": 0.8138181464640298
+    },
+    {
+      "algorithm": "algo3",
+      "label": "Ours",
+      "metric": "Optimality Gap",
+      "point": 0.20636066414969312,
+      "ci_low": 0.18618185353596992,
+      "ci_high": 0.22587215053740003
+    }
+  ],
+  "probability_of_improvement": [
+    {
+      "x": "dhpg_fix2",
+      "y": "algo3",
+      "p_improvement": 0.4126984126984127,
+      "ci_low": 0.3253968253968254,
+      "ci_high": 0.4920634920634921
+    }
+  ],
+  "tasks": [
+    "BallInCup",
+    "CartpoleSwingup",
+    "CheetahRun",
+    "FingerSpin",
+    "FingerTurnEasy",
+    "FingerTurnHard",
+    "FishSwim",
+    "HopperHop",
+    "HopperStand",
+    "ReacherEasy",
+    "ReacherHard",
+    "WalkerRun",
+    "WalkerStand",
+    "WalkerWalk"
+  ],
+  "algorithms": [
+    "dhpg_fix2",
+    "algo3"
+  ]
+}

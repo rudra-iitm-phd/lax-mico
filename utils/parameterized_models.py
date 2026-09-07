@@ -44,6 +44,7 @@ class Optimizers(nnx.Module):
         state_metric,
         state_action_metric,
         min_state_action_to_state_metric,
+        actor_rep=None,
     ):
         self.critic = critic
         self.actor = actor
@@ -51,6 +52,8 @@ class Optimizers(nnx.Module):
         self.state_metric = state_metric
         self.state_action_metric = state_action_metric
         self.min_state_action_to_state_metric = min_state_action_to_state_metric
+        if actor_rep:
+            self.actor_rep = actor_rep
 
 
 class TrainingState(nnx.Module):
@@ -103,3 +106,5 @@ class MetricAux:
 
     h_lambda_diff_self: float = 0.0
     h_lambda_diff_cross: float = 0.0
+    critic_rep_loss: float = 0.0
+    rep_w: float = 0.0

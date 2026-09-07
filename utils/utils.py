@@ -49,6 +49,7 @@ def sac_args():
     p.add_argument("--num-eval-envs", type=int, default=128)
     p.add_argument("--nstep", type=int, default=int(3))
     p.add_argument("--reward_scaling", type = float, default=1.0)
+    p.add_argument("--rep_lr_scale", type = float, default=1.5)
     # logging
     # p.add_argument("--experiment", type=str, default="sac")
     p.add_argument("--log-dir", type=str, default="logs")

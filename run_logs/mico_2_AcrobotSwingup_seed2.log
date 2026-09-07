@@ -1,0 +1,905 @@
+E0904 01:39:20.225495  270256 cuda_executor.cc:1526] Could not get kernel mode driver version: (INVALID_ARGUMENT: Version does not match the format X.Y.Z)
+E0904 01:39:20.233936  270147 cuda_executor.cc:1526] Could not get kernel mode driver version: (INVALID_ARGUMENT: Version does not match the format X.Y.Z)
+[32mStart prefilling replay buffer[0m
+[32mStart MICo training[0m
+[32m{'log_freq': 1000, 'save_freq': 1000000, 'eval_episode_freq': 10, 'hidden_size': 256, 'lr': 0.001, 'max_grad_norm': 0.0, 'gamma': 0.99, 'update_tau': 0.005, 'train_per_step': 8, 'episode_length': 1000, 'warmup_samples': 8192, 'max_replay_size': 4000000, 'batch_size': 512, 'total_env_steps': 5000000, 'init_temperature': 0.1, 'nstep': 3, 'bootstrap_on_truncation': True, 'mico_weight': 0.01, 'mico_beta': 0.1, 'huber_delta': 1.0, 'feature_dim': 50, 'encoder_hidden_layers': 1, 'encoder_layer_norm': True, 'encoder_tanh': True, 'mico_scale_reward': False, 'mico_discount_from_sample': False, 'author_hidden_units': False, 'normalize_obs': True, 'num_envs': 128, 'num_eval_envs': 128, 'reward_scaling': 1.0, 'target_entropy': -0.5}[0m
+[32m[harness] num_envs=128 total_env_steps=5000000 batch=512 train_per_step=8 UTD=0.0625 seed=8192 transitions log_every=128000 transitions normalize_obs=True[0m
+[32m[algorithm] lr=0.001 tau=0.005 nstep=3 cumulative_gamma=0.970299 bootstrap_on_truncation=True mico_weight=0.01 beta=0.1 feature_dim=50 encoder=(hidden_layers=1,ln=True,tanh=True) scale_reward=False discount_from_sample=False alpha_lr=3e-4 init_temperature=0.1 target_entropy=-0.5[0m
+----------------------------------------------
+|              Train/Steps |        1.36e+05 |
+|         Loss/Loss_critic |         0.00188 |
+|          Loss/Loss_actor |          -0.173 |
+|          Loss/Loss_alpha |         0.00177 |
+|           Loss/Loss_mico |         0.00987 |
+|                SAC/Alpha |         0.00165 |
+|           SAC/LogPi_mean |          -0.572 |
+|              SAC/Q1_mean |           0.174 |
+|              SAC/Q2_mean |           0.174 |
+|         MICo/Online_dist |            5.97 |
+|         MICo/Target_dist |            5.96 |
+|           MICo/Norm_term |            5.88 |
+|          MICo/Angle_term |           0.089 |
+|         MICo/Rep_sq_norm |            5.88 |
+|          MICo/Grad_ratio |          0.0058 |
+|         Norm/actor_model |            24.9 |
+|        Norm/critic_model |            43.6 |
+| Norm/state_encoder_model |            16.5 |
+|    Norm/actor_head_model |            14.6 |
+|              Eval/Return |            4.65 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        2.64e+05 |
+|         Loss/Loss_critic |          0.0109 |
+|          Loss/Loss_actor |          -0.169 |
+|          Loss/Loss_alpha |        7.05e-05 |
+|           Loss/Loss_mico |          0.0523 |
+|                SAC/Alpha |        0.000334 |
+|           SAC/LogPi_mean |           0.388 |
+|              SAC/Q1_mean |            0.17 |
+|              SAC/Q2_mean |           0.171 |
+|         MICo/Online_dist |            4.95 |
+|         MICo/Target_dist |            4.77 |
+|           MICo/Norm_term |            4.86 |
+|          MICo/Angle_term |          0.0902 |
+|         MICo/Rep_sq_norm |            4.86 |
+|          MICo/Grad_ratio |          0.0036 |
+|         Norm/actor_model |            36.6 |
+|        Norm/critic_model |            63.3 |
+| Norm/state_encoder_model |            22.7 |
+|    Norm/actor_head_model |            20.3 |
+|              Eval/Return |            27.6 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        3.92e+05 |
+|         Loss/Loss_critic |           0.151 |
+|          Loss/Loss_actor |          -0.797 |
+|          Loss/Loss_alpha |        3.99e-05 |
+|           Loss/Loss_mico |           0.107 |
+|                SAC/Alpha |         0.00105 |
+|           SAC/LogPi_mean |           0.452 |
+|              SAC/Q1_mean |           0.796 |
+|              SAC/Q2_mean |           0.798 |
+|         MICo/Online_dist |            8.38 |
+|         MICo/Target_dist |            8.15 |
+|           MICo/Norm_term |            8.27 |
+|          MICo/Angle_term |           0.107 |
+|         MICo/Rep_sq_norm |            8.27 |
+|          MICo/Grad_ratio |        0.000595 |
+|         Norm/actor_model |            44.5 |
+|        Norm/critic_model |            82.5 |
+| Norm/state_encoder_model |            26.4 |
+|    Norm/actor_head_model |            24.2 |
+|              Eval/Return |              43 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |         5.2e+05 |
+|         Loss/Loss_critic |           0.319 |
+|          Loss/Loss_actor |           -1.47 |
+|          Loss/Loss_alpha |       -0.000122 |
+|           Loss/Loss_mico |           0.156 |
+|                SAC/Alpha |         0.00164 |
+|           SAC/LogPi_mean |           0.618 |
+|              SAC/Q1_mean |             1.5 |
+|              SAC/Q2_mean |            1.51 |
+|         MICo/Online_dist |            9.72 |
+|         MICo/Target_dist |            9.45 |
+|           MICo/Norm_term |            9.61 |
+|          MICo/Angle_term |           0.116 |
+|         MICo/Rep_sq_norm |            9.61 |
+|          MICo/Grad_ratio |        0.000733 |
+|         Norm/actor_model |            51.5 |
+|        Norm/critic_model |            95.9 |
+| Norm/state_encoder_model |            28.8 |
+|    Norm/actor_head_model |            26.8 |
+|              Eval/Return |            43.1 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        6.48e+05 |
+|         Loss/Loss_critic |           0.131 |
+|          Loss/Loss_actor |           -2.25 |
+|          Loss/Loss_alpha |        0.000249 |
+|           Loss/Loss_mico |           0.157 |
+|                SAC/Alpha |         0.00239 |
+|           SAC/LogPi_mean |           0.425 |
+|              SAC/Q1_mean |            2.29 |
+|              SAC/Q2_mean |            2.29 |
+|         MICo/Online_dist |            10.1 |
+|         MICo/Target_dist |              10 |
+|           MICo/Norm_term |            9.96 |
+|          MICo/Angle_term |           0.117 |
+|         MICo/Rep_sq_norm |            9.96 |
+|          MICo/Grad_ratio |        0.000774 |
+|         Norm/actor_model |            58.3 |
+|        Norm/critic_model |             107 |
+| Norm/state_encoder_model |            30.9 |
+|    Norm/actor_head_model |            29.3 |
+|              Eval/Return |            50.4 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        7.76e+05 |
+|         Loss/Loss_critic |           0.076 |
+|          Loss/Loss_actor |           -2.16 |
+|          Loss/Loss_alpha |         5.2e-05 |
+|           Loss/Loss_mico |           0.187 |
+|                SAC/Alpha |         0.00259 |
+|           SAC/LogPi_mean |            0.44 |
+|              SAC/Q1_mean |            2.18 |
+|              SAC/Q2_mean |            2.19 |
+|         MICo/Online_dist |            10.7 |
+|         MICo/Target_dist |            10.5 |
+|           MICo/Norm_term |            10.6 |
+|          MICo/Angle_term |           0.117 |
+|         MICo/Rep_sq_norm |            10.6 |
+|          MICo/Grad_ratio |         0.00187 |
+|         Norm/actor_model |            64.6 |
+|        Norm/critic_model |             116 |
+| Norm/state_encoder_model |            32.8 |
+|    Norm/actor_head_model |            31.5 |
+|              Eval/Return |            96.7 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        9.04e+05 |
+|         Loss/Loss_critic |           0.102 |
+|          Loss/Loss_actor |           -4.05 |
+|          Loss/Loss_alpha |        0.000178 |
+|           Loss/Loss_mico |           0.208 |
+|                SAC/Alpha |         0.00344 |
+|           SAC/LogPi_mean |           0.509 |
+|              SAC/Q1_mean |            4.06 |
+|              SAC/Q2_mean |             4.1 |
+|         MICo/Online_dist |            10.9 |
+|         MICo/Target_dist |            10.8 |
+|           MICo/Norm_term |            10.7 |
+|          MICo/Angle_term |            0.12 |
+|         MICo/Rep_sq_norm |            10.7 |
+|          MICo/Grad_ratio |        0.000625 |
+|         Norm/actor_model |            70.1 |
+|        Norm/critic_model |             125 |
+| Norm/state_encoder_model |            34.6 |
+|    Norm/actor_head_model |            33.6 |
+|              Eval/Return |             134 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        1.03e+06 |
+|         Loss/Loss_critic |           0.149 |
+|          Loss/Loss_actor |           -4.64 |
+|          Loss/Loss_alpha |        0.000274 |
+|           Loss/Loss_mico |           0.253 |
+|                SAC/Alpha |         0.00348 |
+|           SAC/LogPi_mean |           0.474 |
+|              SAC/Q1_mean |            4.71 |
+|              SAC/Q2_mean |            4.66 |
+|         MICo/Online_dist |            11.1 |
+|         MICo/Target_dist |            11.1 |
+|           MICo/Norm_term |              11 |
+|          MICo/Angle_term |           0.121 |
+|         MICo/Rep_sq_norm |              11 |
+|          MICo/Grad_ratio |         0.00065 |
+|         Norm/actor_model |            75.6 |
+|        Norm/critic_model |             133 |
+| Norm/state_encoder_model |            36.3 |
+|    Norm/actor_head_model |            35.6 |
+|              Eval/Return |             127 |
+----------------------------------------------
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+----------------------------------------------
+|              Train/Steps |        1.16e+06 |
+|         Loss/Loss_critic |           0.177 |
+|          Loss/Loss_actor |           -7.12 |
+|          Loss/Loss_alpha |       -0.000352 |
+|           Loss/Loss_mico |           0.324 |
+|                SAC/Alpha |         0.00437 |
+|           SAC/LogPi_mean |           0.638 |
+|              SAC/Q1_mean |            7.19 |
+|              SAC/Q2_mean |            7.13 |
+|         MICo/Online_dist |            11.6 |
+|         MICo/Target_dist |            11.7 |
+|           MICo/Norm_term |            11.5 |
+|          MICo/Angle_term |           0.125 |
+|         MICo/Rep_sq_norm |            11.5 |
+|          MICo/Grad_ratio |        0.000497 |
+|         Norm/actor_model |            80.7 |
+|        Norm/critic_model |             140 |
+| Norm/state_encoder_model |            37.9 |
+|    Norm/actor_head_model |            37.5 |
+|              Eval/Return |             124 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        1.29e+06 |
+|         Loss/Loss_critic |           0.321 |
+|          Loss/Loss_actor |           -6.51 |
+|          Loss/Loss_alpha |        0.000779 |
+|           Loss/Loss_mico |           0.281 |
+|                SAC/Alpha |          0.0042 |
+|           SAC/LogPi_mean |           0.354 |
+|              SAC/Q1_mean |            6.54 |
+|              SAC/Q2_mean |            6.52 |
+|         MICo/Online_dist |            11.6 |
+|         MICo/Target_dist |            11.6 |
+|           MICo/Norm_term |            11.5 |
+|          MICo/Angle_term |            0.12 |
+|         MICo/Rep_sq_norm |            11.5 |
+|          MICo/Grad_ratio |        0.000304 |
+|         Norm/actor_model |            85.4 |
+|        Norm/critic_model |             147 |
+| Norm/state_encoder_model |            39.4 |
+|    Norm/actor_head_model |            39.3 |
+|              Eval/Return |             165 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        1.42e+06 |
+|         Loss/Loss_critic |           0.294 |
+|          Loss/Loss_actor |           -8.62 |
+|          Loss/Loss_alpha |       -0.000137 |
+|           Loss/Loss_mico |           0.318 |
+|                SAC/Alpha |         0.00411 |
+|           SAC/LogPi_mean |           0.549 |
+|              SAC/Q1_mean |            8.65 |
+|              SAC/Q2_mean |            8.64 |
+|         MICo/Online_dist |            11.9 |
+|         MICo/Target_dist |              12 |
+|           MICo/Norm_term |            11.8 |
+|          MICo/Angle_term |           0.123 |
+|         MICo/Rep_sq_norm |            11.8 |
+|          MICo/Grad_ratio |        0.000247 |
+|         Norm/actor_model |            89.8 |
+|        Norm/critic_model |             154 |
+| Norm/state_encoder_model |            40.9 |
+|    Norm/actor_head_model |              41 |
+|              Eval/Return |             184 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        1.54e+06 |
+|         Loss/Loss_critic |           0.267 |
+|          Loss/Loss_actor |           -9.38 |
+|          Loss/Loss_alpha |       -0.000672 |
+|           Loss/Loss_mico |           0.344 |
+|                SAC/Alpha |         0.00371 |
+|           SAC/LogPi_mean |           0.644 |
+|              SAC/Q1_mean |            9.46 |
+|              SAC/Q2_mean |            9.42 |
+|         MICo/Online_dist |            12.3 |
+|         MICo/Target_dist |            12.3 |
+|           MICo/Norm_term |            12.1 |
+|          MICo/Angle_term |           0.126 |
+|         MICo/Rep_sq_norm |            12.1 |
+|          MICo/Grad_ratio |        0.000406 |
+|         Norm/actor_model |            93.9 |
+|        Norm/critic_model |             160 |
+| Norm/state_encoder_model |            42.4 |
+|    Norm/actor_head_model |            42.7 |
+|              Eval/Return |             167 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        1.67e+06 |
+|         Loss/Loss_critic |           0.238 |
+|          Loss/Loss_actor |           -11.4 |
+|          Loss/Loss_alpha |       -0.000211 |
+|           Loss/Loss_mico |           0.427 |
+|                SAC/Alpha |         0.00378 |
+|           SAC/LogPi_mean |           0.602 |
+|              SAC/Q1_mean |            11.5 |
+|              SAC/Q2_mean |            11.4 |
+|         MICo/Online_dist |            12.6 |
+|         MICo/Target_dist |            12.8 |
+|           MICo/Norm_term |            12.4 |
+|          MICo/Angle_term |           0.126 |
+|         MICo/Rep_sq_norm |            12.4 |
+|          MICo/Grad_ratio |        0.000185 |
+|         Norm/actor_model |            97.8 |
+|        Norm/critic_model |             166 |
+| Norm/state_encoder_model |            43.7 |
+|    Norm/actor_head_model |            44.3 |
+|              Eval/Return |             245 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |         1.8e+06 |
+|         Loss/Loss_critic |            0.34 |
+|          Loss/Loss_actor |           -9.88 |
+|          Loss/Loss_alpha |        0.000188 |
+|           Loss/Loss_mico |           0.388 |
+|                SAC/Alpha |         0.00359 |
+|           SAC/LogPi_mean |            0.46 |
+|              SAC/Q1_mean |            9.86 |
+|              SAC/Q2_mean |             9.9 |
+|         MICo/Online_dist |            12.4 |
+|         MICo/Target_dist |            12.5 |
+|           MICo/Norm_term |            12.2 |
+|          MICo/Angle_term |           0.122 |
+|         MICo/Rep_sq_norm |            12.2 |
+|          MICo/Grad_ratio |        0.000188 |
+|         Norm/actor_model |             102 |
+|        Norm/critic_model |             171 |
+| Norm/state_encoder_model |              45 |
+|    Norm/actor_head_model |            45.9 |
+|              Eval/Return |             181 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        1.93e+06 |
+|         Loss/Loss_critic |           0.108 |
+|          Loss/Loss_actor |           -10.4 |
+|          Loss/Loss_alpha |       -0.000266 |
+|           Loss/Loss_mico |           0.343 |
+|                SAC/Alpha |         0.00369 |
+|           SAC/LogPi_mean |           0.591 |
+|              SAC/Q1_mean |            10.4 |
+|              SAC/Q2_mean |            10.4 |
+|         MICo/Online_dist |            12.6 |
+|         MICo/Target_dist |            12.6 |
+|           MICo/Norm_term |            12.5 |
+|          MICo/Angle_term |           0.123 |
+|         MICo/Rep_sq_norm |            12.5 |
+|          MICo/Grad_ratio |         0.00043 |
+|         Norm/actor_model |             106 |
+|        Norm/critic_model |             177 |
+| Norm/state_encoder_model |            46.3 |
+|    Norm/actor_head_model |            47.5 |
+|              Eval/Return |             239 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        2.06e+06 |
+|         Loss/Loss_critic |           0.425 |
+|          Loss/Loss_actor |           -13.3 |
+|          Loss/Loss_alpha |        0.000357 |
+|           Loss/Loss_mico |           0.459 |
+|                SAC/Alpha |         0.00379 |
+|           SAC/LogPi_mean |           0.408 |
+|              SAC/Q1_mean |            13.4 |
+|              SAC/Q2_mean |            13.4 |
+|         MICo/Online_dist |              13 |
+|         MICo/Target_dist |            13.3 |
+|           MICo/Norm_term |            12.9 |
+|          MICo/Angle_term |           0.124 |
+|         MICo/Rep_sq_norm |            12.9 |
+|          MICo/Grad_ratio |        0.000217 |
+|         Norm/actor_model |             109 |
+|        Norm/critic_model |             182 |
+| Norm/state_encoder_model |            47.6 |
+|    Norm/actor_head_model |              49 |
+|              Eval/Return |             161 |
+----------------------------------------------
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+----------------------------------------------
+|              Train/Steps |        2.18e+06 |
+|         Loss/Loss_critic |           0.164 |
+|          Loss/Loss_actor |           -12.9 |
+|          Loss/Loss_alpha |       -0.000471 |
+|           Loss/Loss_mico |           0.423 |
+|                SAC/Alpha |         0.00398 |
+|           SAC/LogPi_mean |           0.681 |
+|              SAC/Q1_mean |            12.9 |
+|              SAC/Q2_mean |            12.9 |
+|         MICo/Online_dist |            13.2 |
+|         MICo/Target_dist |            13.4 |
+|           MICo/Norm_term |            13.1 |
+|          MICo/Angle_term |           0.126 |
+|         MICo/Rep_sq_norm |            13.1 |
+|          MICo/Grad_ratio |        0.000291 |
+|         Norm/actor_model |             113 |
+|        Norm/critic_model |             186 |
+| Norm/state_encoder_model |            48.8 |
+|    Norm/actor_head_model |            50.5 |
+|              Eval/Return |             197 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        2.31e+06 |
+|         Loss/Loss_critic |           0.182 |
+|          Loss/Loss_actor |           -12.2 |
+|          Loss/Loss_alpha |       -0.000277 |
+|           Loss/Loss_mico |           0.405 |
+|                SAC/Alpha |         0.00397 |
+|           SAC/LogPi_mean |           0.547 |
+|              SAC/Q1_mean |            12.2 |
+|              SAC/Q2_mean |            12.3 |
+|         MICo/Online_dist |            12.7 |
+|         MICo/Target_dist |            12.9 |
+|           MICo/Norm_term |            12.6 |
+|          MICo/Angle_term |           0.121 |
+|         MICo/Rep_sq_norm |            12.6 |
+|          MICo/Grad_ratio |        0.000449 |
+|         Norm/actor_model |             116 |
+|        Norm/critic_model |             191 |
+| Norm/state_encoder_model |            49.9 |
+|    Norm/actor_head_model |            51.9 |
+|              Eval/Return |             118 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        2.44e+06 |
+|         Loss/Loss_critic |           0.146 |
+|          Loss/Loss_actor |           -15.1 |
+|          Loss/Loss_alpha |       -0.000475 |
+|           Loss/Loss_mico |           0.463 |
+|                SAC/Alpha |         0.00394 |
+|           SAC/LogPi_mean |           0.602 |
+|              SAC/Q1_mean |            15.1 |
+|              SAC/Q2_mean |            15.1 |
+|         MICo/Online_dist |            13.5 |
+|         MICo/Target_dist |            13.8 |
+|           MICo/Norm_term |            13.4 |
+|          MICo/Angle_term |           0.128 |
+|         MICo/Rep_sq_norm |            13.4 |
+|          MICo/Grad_ratio |        0.000533 |
+|         Norm/actor_model |             119 |
+|        Norm/critic_model |             195 |
+| Norm/state_encoder_model |            51.1 |
+|    Norm/actor_head_model |            53.3 |
+|              Eval/Return |             200 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        2.57e+06 |
+|         Loss/Loss_critic |           0.172 |
+|          Loss/Loss_actor |           -14.4 |
+|          Loss/Loss_alpha |       -0.000324 |
+|           Loss/Loss_mico |           0.512 |
+|                SAC/Alpha |         0.00423 |
+|           SAC/LogPi_mean |           0.493 |
+|              SAC/Q1_mean |            14.5 |
+|              SAC/Q2_mean |            14.5 |
+|         MICo/Online_dist |            13.5 |
+|         MICo/Target_dist |            13.8 |
+|           MICo/Norm_term |            13.4 |
+|          MICo/Angle_term |           0.126 |
+|         MICo/Rep_sq_norm |            13.4 |
+|          MICo/Grad_ratio |        0.000301 |
+|         Norm/actor_model |             123 |
+|        Norm/critic_model |             199 |
+| Norm/state_encoder_model |            52.2 |
+|    Norm/actor_head_model |            54.6 |
+|              Eval/Return |             194 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |         2.7e+06 |
+|         Loss/Loss_critic |           0.103 |
+|          Loss/Loss_actor |           -13.3 |
+|          Loss/Loss_alpha |        0.000314 |
+|           Loss/Loss_mico |           0.447 |
+|                SAC/Alpha |          0.0041 |
+|           SAC/LogPi_mean |           0.521 |
+|              SAC/Q1_mean |            13.3 |
+|              SAC/Q2_mean |            13.3 |
+|         MICo/Online_dist |            13.4 |
+|         MICo/Target_dist |            13.6 |
+|           MICo/Norm_term |            13.3 |
+|          MICo/Angle_term |           0.121 |
+|         MICo/Rep_sq_norm |            13.3 |
+|          MICo/Grad_ratio |        0.000816 |
+|         Norm/actor_model |             126 |
+|        Norm/critic_model |             203 |
+| Norm/state_encoder_model |            53.3 |
+|    Norm/actor_head_model |            55.9 |
+|              Eval/Return |             164 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        2.82e+06 |
+|         Loss/Loss_critic |          0.0983 |
+|          Loss/Loss_actor |           -16.4 |
+|          Loss/Loss_alpha |       -2.13e-05 |
+|           Loss/Loss_mico |           0.528 |
+|                SAC/Alpha |         0.00417 |
+|           SAC/LogPi_mean |            0.48 |
+|              SAC/Q1_mean |            16.4 |
+|              SAC/Q2_mean |            16.4 |
+|         MICo/Online_dist |            14.2 |
+|         MICo/Target_dist |            14.5 |
+|           MICo/Norm_term |              14 |
+|          MICo/Angle_term |           0.128 |
+|         MICo/Rep_sq_norm |              14 |
+|          MICo/Grad_ratio |        0.000613 |
+|         Norm/actor_model |             129 |
+|        Norm/critic_model |             207 |
+| Norm/state_encoder_model |            54.3 |
+|    Norm/actor_head_model |            57.2 |
+|              Eval/Return |             204 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        2.95e+06 |
+|         Loss/Loss_critic |           0.113 |
+|          Loss/Loss_actor |           -15.5 |
+|          Loss/Loss_alpha |       -0.000291 |
+|           Loss/Loss_mico |           0.482 |
+|                SAC/Alpha |         0.00418 |
+|           SAC/LogPi_mean |           0.509 |
+|              SAC/Q1_mean |            15.5 |
+|              SAC/Q2_mean |            15.6 |
+|         MICo/Online_dist |              14 |
+|         MICo/Target_dist |            14.3 |
+|           MICo/Norm_term |            13.9 |
+|          MICo/Angle_term |           0.128 |
+|         MICo/Rep_sq_norm |            13.9 |
+|          MICo/Grad_ratio |        0.000722 |
+|         Norm/actor_model |             132 |
+|        Norm/critic_model |             211 |
+| Norm/state_encoder_model |            55.4 |
+|    Norm/actor_head_model |            58.5 |
+|              Eval/Return |             188 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        3.08e+06 |
+|         Loss/Loss_critic |           0.124 |
+|          Loss/Loss_actor |             -14 |
+|          Loss/Loss_alpha |        0.000119 |
+|           Loss/Loss_mico |           0.418 |
+|                SAC/Alpha |         0.00413 |
+|           SAC/LogPi_mean |           0.553 |
+|              SAC/Q1_mean |              14 |
+|              SAC/Q2_mean |              14 |
+|         MICo/Online_dist |            13.7 |
+|         MICo/Target_dist |            13.8 |
+|           MICo/Norm_term |            13.5 |
+|          MICo/Angle_term |           0.124 |
+|         MICo/Rep_sq_norm |            13.5 |
+|          MICo/Grad_ratio |        0.000267 |
+|         Norm/actor_model |             135 |
+|        Norm/critic_model |             215 |
+| Norm/state_encoder_model |            56.3 |
+|    Norm/actor_head_model |            59.7 |
+|              Eval/Return |             211 |
+----------------------------------------------
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+----------------------------------------------
+|              Train/Steps |        3.21e+06 |
+|         Loss/Loss_critic |           0.222 |
+|          Loss/Loss_actor |           -17.3 |
+|          Loss/Loss_alpha |        -0.00032 |
+|           Loss/Loss_mico |            0.52 |
+|                SAC/Alpha |         0.00428 |
+|           SAC/LogPi_mean |             0.6 |
+|              SAC/Q1_mean |            17.3 |
+|              SAC/Q2_mean |            17.3 |
+|         MICo/Online_dist |            14.5 |
+|         MICo/Target_dist |            14.8 |
+|           MICo/Norm_term |            14.4 |
+|          MICo/Angle_term |           0.128 |
+|         MICo/Rep_sq_norm |            14.4 |
+|          MICo/Grad_ratio |        0.000303 |
+|         Norm/actor_model |             138 |
+|        Norm/critic_model |             219 |
+| Norm/state_encoder_model |            57.4 |
+|    Norm/actor_head_model |              61 |
+|              Eval/Return |             283 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        3.34e+06 |
+|         Loss/Loss_critic |           0.183 |
+|          Loss/Loss_actor |           -15.5 |
+|          Loss/Loss_alpha |        0.000178 |
+|           Loss/Loss_mico |           0.502 |
+|                SAC/Alpha |         0.00467 |
+|           SAC/LogPi_mean |           0.398 |
+|              SAC/Q1_mean |            15.5 |
+|              SAC/Q2_mean |            15.5 |
+|         MICo/Online_dist |            14.2 |
+|         MICo/Target_dist |            14.5 |
+|           MICo/Norm_term |            14.1 |
+|          MICo/Angle_term |           0.124 |
+|         MICo/Rep_sq_norm |            14.1 |
+|          MICo/Grad_ratio |        0.000311 |
+|         Norm/actor_model |             141 |
+|        Norm/critic_model |             223 |
+| Norm/state_encoder_model |            58.3 |
+|    Norm/actor_head_model |            62.2 |
+|              Eval/Return |             311 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        3.46e+06 |
+|         Loss/Loss_critic |           0.108 |
+|          Loss/Loss_actor |           -16.6 |
+|          Loss/Loss_alpha |       -0.000475 |
+|           Loss/Loss_mico |           0.533 |
+|                SAC/Alpha |         0.00522 |
+|           SAC/LogPi_mean |           0.531 |
+|              SAC/Q1_mean |            16.7 |
+|              SAC/Q2_mean |            16.6 |
+|         MICo/Online_dist |            14.8 |
+|         MICo/Target_dist |            15.1 |
+|           MICo/Norm_term |            14.6 |
+|          MICo/Angle_term |           0.127 |
+|         MICo/Rep_sq_norm |            14.6 |
+|          MICo/Grad_ratio |        0.000518 |
+|         Norm/actor_model |             144 |
+|        Norm/critic_model |             226 |
+| Norm/state_encoder_model |            59.3 |
+|    Norm/actor_head_model |            63.4 |
+|              Eval/Return |             271 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        3.59e+06 |
+|         Loss/Loss_critic |           0.111 |
+|          Loss/Loss_actor |             -19 |
+|          Loss/Loss_alpha |       -0.000477 |
+|           Loss/Loss_mico |           0.545 |
+|                SAC/Alpha |         0.00525 |
+|           SAC/LogPi_mean |           0.538 |
+|              SAC/Q1_mean |            19.1 |
+|              SAC/Q2_mean |            19.1 |
+|         MICo/Online_dist |            15.1 |
+|         MICo/Target_dist |            15.5 |
+|           MICo/Norm_term |              15 |
+|          MICo/Angle_term |           0.128 |
+|         MICo/Rep_sq_norm |              15 |
+|          MICo/Grad_ratio |        0.000675 |
+|         Norm/actor_model |             146 |
+|        Norm/critic_model |             230 |
+| Norm/state_encoder_model |            60.3 |
+|    Norm/actor_head_model |            64.6 |
+|              Eval/Return |             278 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        3.72e+06 |
+|         Loss/Loss_critic |           0.143 |
+|          Loss/Loss_actor |           -18.8 |
+|          Loss/Loss_alpha |        -0.00065 |
+|           Loss/Loss_mico |           0.564 |
+|                SAC/Alpha |         0.00544 |
+|           SAC/LogPi_mean |           0.552 |
+|              SAC/Q1_mean |            18.9 |
+|              SAC/Q2_mean |            18.8 |
+|         MICo/Online_dist |            15.2 |
+|         MICo/Target_dist |            15.6 |
+|           MICo/Norm_term |            15.1 |
+|          MICo/Angle_term |           0.127 |
+|         MICo/Rep_sq_norm |            15.1 |
+|          MICo/Grad_ratio |        0.000639 |
+|         Norm/actor_model |             149 |
+|        Norm/critic_model |             234 |
+| Norm/state_encoder_model |            61.2 |
+|    Norm/actor_head_model |            65.8 |
+|              Eval/Return |             226 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        3.85e+06 |
+|         Loss/Loss_critic |           0.117 |
+|          Loss/Loss_actor |           -17.6 |
+|          Loss/Loss_alpha |        0.000314 |
+|           Loss/Loss_mico |           0.496 |
+|                SAC/Alpha |         0.00528 |
+|           SAC/LogPi_mean |           0.469 |
+|              SAC/Q1_mean |            17.6 |
+|              SAC/Q2_mean |            17.6 |
+|         MICo/Online_dist |              15 |
+|         MICo/Target_dist |            15.2 |
+|           MICo/Norm_term |            14.9 |
+|          MICo/Angle_term |           0.126 |
+|         MICo/Rep_sq_norm |            14.9 |
+|          MICo/Grad_ratio |        0.000388 |
+|         Norm/actor_model |             152 |
+|        Norm/critic_model |             237 |
+| Norm/state_encoder_model |            62.3 |
+|    Norm/actor_head_model |            66.9 |
+|              Eval/Return |             262 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        3.98e+06 |
+|         Loss/Loss_critic |           0.252 |
+|          Loss/Loss_actor |           -18.9 |
+|          Loss/Loss_alpha |       -0.000468 |
+|           Loss/Loss_mico |           0.514 |
+|                SAC/Alpha |         0.00555 |
+|           SAC/LogPi_mean |           0.626 |
+|              SAC/Q1_mean |            18.9 |
+|              SAC/Q2_mean |            18.9 |
+|         MICo/Online_dist |            15.3 |
+|         MICo/Target_dist |            15.6 |
+|           MICo/Norm_term |            15.2 |
+|          MICo/Angle_term |           0.127 |
+|         MICo/Rep_sq_norm |            15.2 |
+|          MICo/Grad_ratio |        0.000349 |
+|         Norm/actor_model |             155 |
+|        Norm/critic_model |             241 |
+| Norm/state_encoder_model |            63.2 |
+|    Norm/actor_head_model |              68 |
+|              Eval/Return |             259 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |         4.1e+06 |
+|         Loss/Loss_critic |           0.322 |
+|          Loss/Loss_actor |           -22.6 |
+|          Loss/Loss_alpha |        0.000132 |
+|           Loss/Loss_mico |           0.644 |
+|                SAC/Alpha |         0.00605 |
+|           SAC/LogPi_mean |           0.465 |
+|              SAC/Q1_mean |            22.6 |
+|              SAC/Q2_mean |            22.6 |
+|         MICo/Online_dist |            16.1 |
+|         MICo/Target_dist |            16.6 |
+|           MICo/Norm_term |              16 |
+|          MICo/Angle_term |           0.128 |
+|         MICo/Rep_sq_norm |              16 |
+|          MICo/Grad_ratio |        0.000217 |
+|         Norm/actor_model |             157 |
+|        Norm/critic_model |             244 |
+| Norm/state_encoder_model |            64.2 |
+|    Norm/actor_head_model |            69.1 |
+|              Eval/Return |             222 |
+----------------------------------------------
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+----------------------------------------------
+|              Train/Steps |        4.23e+06 |
+|         Loss/Loss_critic |           0.202 |
+|          Loss/Loss_actor |           -20.3 |
+|          Loss/Loss_alpha |        0.000865 |
+|           Loss/Loss_mico |           0.611 |
+|                SAC/Alpha |         0.00614 |
+|           SAC/LogPi_mean |           0.445 |
+|              SAC/Q1_mean |            20.4 |
+|              SAC/Q2_mean |            20.4 |
+|         MICo/Online_dist |            15.9 |
+|         MICo/Target_dist |            16.3 |
+|           MICo/Norm_term |            15.8 |
+|          MICo/Angle_term |           0.125 |
+|         MICo/Rep_sq_norm |            15.8 |
+|          MICo/Grad_ratio |        0.000422 |
+|         Norm/actor_model |             160 |
+|        Norm/critic_model |             247 |
+| Norm/state_encoder_model |            65.1 |
+|    Norm/actor_head_model |            70.2 |
+|              Eval/Return |             343 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        4.36e+06 |
+|         Loss/Loss_critic |          0.0744 |
+|          Loss/Loss_actor |             -21 |
+|          Loss/Loss_alpha |        0.000231 |
+|           Loss/Loss_mico |           0.634 |
+|                SAC/Alpha |         0.00596 |
+|           SAC/LogPi_mean |           0.532 |
+|              SAC/Q1_mean |              21 |
+|              SAC/Q2_mean |              21 |
+|         MICo/Online_dist |            15.9 |
+|         MICo/Target_dist |            16.4 |
+|           MICo/Norm_term |            15.8 |
+|          MICo/Angle_term |           0.124 |
+|         MICo/Rep_sq_norm |            15.8 |
+|          MICo/Grad_ratio |        0.000383 |
+|         Norm/actor_model |             162 |
+|        Norm/critic_model |             250 |
+| Norm/state_encoder_model |              66 |
+|    Norm/actor_head_model |            71.3 |
+|              Eval/Return |             284 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        4.49e+06 |
+|         Loss/Loss_critic |           0.143 |
+|          Loss/Loss_actor |           -24.9 |
+|          Loss/Loss_alpha |       -0.000393 |
+|           Loss/Loss_mico |           0.683 |
+|                SAC/Alpha |         0.00657 |
+|           SAC/LogPi_mean |           0.534 |
+|              SAC/Q1_mean |              25 |
+|              SAC/Q2_mean |            24.9 |
+|         MICo/Online_dist |            16.9 |
+|         MICo/Target_dist |            17.4 |
+|           MICo/Norm_term |            16.8 |
+|          MICo/Angle_term |           0.128 |
+|         MICo/Rep_sq_norm |            16.8 |
+|          MICo/Grad_ratio |        0.000547 |
+|         Norm/actor_model |             165 |
+|        Norm/critic_model |             253 |
+| Norm/state_encoder_model |            66.9 |
+|    Norm/actor_head_model |            72.4 |
+|              Eval/Return |             354 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        4.62e+06 |
+|         Loss/Loss_critic |           0.167 |
+|          Loss/Loss_actor |           -24.5 |
+|          Loss/Loss_alpha |        -9.3e-05 |
+|           Loss/Loss_mico |           0.625 |
+|                SAC/Alpha |         0.00646 |
+|           SAC/LogPi_mean |           0.602 |
+|              SAC/Q1_mean |            24.5 |
+|              SAC/Q2_mean |            24.5 |
+|         MICo/Online_dist |            16.8 |
+|         MICo/Target_dist |            17.3 |
+|           MICo/Norm_term |            16.7 |
+|          MICo/Angle_term |           0.125 |
+|         MICo/Rep_sq_norm |            16.7 |
+|          MICo/Grad_ratio |        0.000513 |
+|         Norm/actor_model |             167 |
+|        Norm/critic_model |             256 |
+| Norm/state_encoder_model |            67.8 |
+|    Norm/actor_head_model |            73.5 |
+|              Eval/Return |             300 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        4.74e+06 |
+|         Loss/Loss_critic |          0.0809 |
+|          Loss/Loss_actor |           -21.3 |
+|          Loss/Loss_alpha |         0.00033 |
+|           Loss/Loss_mico |           0.598 |
+|                SAC/Alpha |         0.00623 |
+|           SAC/LogPi_mean |           0.446 |
+|              SAC/Q1_mean |            21.2 |
+|              SAC/Q2_mean |            21.3 |
+|         MICo/Online_dist |            16.6 |
+|         MICo/Target_dist |              17 |
+|           MICo/Norm_term |            16.4 |
+|          MICo/Angle_term |           0.124 |
+|         MICo/Rep_sq_norm |            16.4 |
+|          MICo/Grad_ratio |        0.000588 |
+|         Norm/actor_model |             170 |
+|        Norm/critic_model |             258 |
+| Norm/state_encoder_model |            68.7 |
+|    Norm/actor_head_model |            74.6 |
+|              Eval/Return |             280 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |        4.87e+06 |
+|         Loss/Loss_critic |          0.0975 |
+|          Loss/Loss_actor |           -23.9 |
+|          Loss/Loss_alpha |        0.000261 |
+|           Loss/Loss_mico |            0.66 |
+|                SAC/Alpha |         0.00584 |
+|           SAC/LogPi_mean |           0.477 |
+|              SAC/Q1_mean |            23.9 |
+|              SAC/Q2_mean |              24 |
+|         MICo/Online_dist |              17 |
+|         MICo/Target_dist |            17.5 |
+|           MICo/Norm_term |            16.9 |
+|          MICo/Angle_term |           0.122 |
+|         MICo/Rep_sq_norm |            16.9 |
+|          MICo/Grad_ratio |        0.000254 |
+|         Norm/actor_model |             172 |
+|        Norm/critic_model |             261 |
+| Norm/state_encoder_model |            69.5 |
+|    Norm/actor_head_model |            75.6 |
+|              Eval/Return |             354 |
+----------------------------------------------
+----------------------------------------------
+|              Train/Steps |           5e+06 |
+|         Loss/Loss_critic |          0.0887 |
+|          Loss/Loss_actor |           -26.1 |
+|          Loss/Loss_alpha |       -0.000318 |
+|           Loss/Loss_mico |           0.706 |
+|                SAC/Alpha |         0.00595 |
+|           SAC/LogPi_mean |           0.561 |
+|              SAC/Q1_mean |            26.2 |
+|              SAC/Q2_mean |            26.2 |
+|         MICo/Online_dist |            17.5 |
+|         MICo/Target_dist |            18.1 |
+|           MICo/Norm_term |            17.4 |
+|          MICo/Angle_term |           0.123 |
+|         MICo/Rep_sq_norm |            17.4 |
+|          MICo/Grad_ratio |         0.00101 |
+|         Norm/actor_model |             174 |
+|        Norm/critic_model |             263 |
+| Norm/state_encoder_model |            70.3 |
+|    Norm/actor_head_model |            76.7 |
+|              Eval/Return |             252 |
+----------------------------------------------
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
+[32mSaving model …[0m
+[32mDone.[0m
